@@ -1,0 +1,14 @@
+{
+  "name": "elm-gltf-loader",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "elm-test src/**/*Test.elm"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "elm-test": "^0.19.1-revision2"
+  }
+}
