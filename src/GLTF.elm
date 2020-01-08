@@ -14,6 +14,7 @@ type GLTF
         , scenes : List Scene
         , cameras : List Camera
         , nodes : List Node
+        , meshes : List (Mesh Attributes)
         }
 
 
@@ -281,16 +282,64 @@ nodesDecoder =
         |> JD.map buildTreeFromRootNodes
 
 
+type alias Attributes =
+    { normal : Int
+    , position : Int
+    }
+
+
+type MeshMode
+    = Triangles
+
+
+meshModeDecoder : JD.Decoder MeshMode
+meshModeDecoder =
+    JD.int
+        |> JD.andThen
+            (\int ->
+                case int of
+                    4 ->
+                        JD.succeed Triangles
+
+                    _ ->
+                        JD.fail ("Unknown Mesh Mode constant: Got " ++ String.fromInt int)
+            )
+
+
+meshesDecoder : JD.Decoder (List (Mesh Attributes))
+meshesDecoder =
+    let
+        attributesDecoder =
+            JD.map2 Attributes
+                (JD.field "NORMAL" JD.int)
+                (JD.field "POSITION" JD.int)
+    in
+    JD.field "meshes"
+        (JD.list
+            (JD.field "primitives"
+                (JD.list
+                    (JD.map3 (\attr indices mode -> WebGL.triangles [])
+                        (JD.field "attributes" attributesDecoder)
+                        (JD.field "indices" JD.int)
+                        (JD.field "mode" meshModeDecoder)
+                    )
+                )
+            )
+        )
+        |> JD.map List.concat
+
+
 gltfEmbeddedDecoder : JD.Decoder GLTF
 gltfEmbeddedDecoder =
-    JD.map5
-        (\version scene scenes cameras nodes ->
+    JD.map6
+        (\version scene scenes cameras nodes meshes ->
             GLTF
                 { version = version
                 , defaultScene = scene
                 , scenes = scenes
                 , cameras = cameras
                 , nodes = nodes
+                , meshes = meshes
                 }
         )
         (JD.field "asset" (JD.field "version" JD.string))
@@ -298,3 +347,4 @@ gltfEmbeddedDecoder =
         scenesDecoder
         camerasDecoder
         nodesDecoder
+        meshesDecoder
