@@ -4,7 +4,7 @@ import Json.Decode as JD
 import Json.Decode.Pipeline as JDP
 import Math.Matrix4 as Mat4
 import Set
-import Util
+import Util exposing (defaultDecoder)
 import WebGL exposing (Mesh)
 
 
@@ -17,6 +17,8 @@ type GLTF
         , nodes : List Node
         , meshes : List (Mesh Attributes)
         , accessors : List Accessor
+        , bufferViews : List BufferView
+        , buffers : List Buffer
         }
 
 
@@ -95,6 +97,39 @@ type alias Accessor =
     , minMax : ( List Float, List Float )
     , type_ : NumComponents
     }
+
+
+
+-- buffer views
+
+
+type alias BufferView =
+    { buffer : Int
+    , byteOffset : Int
+    , byteLength : Int
+    , byteStride : Maybe Int
+    , target : Maybe BufferType
+    }
+
+
+type BufferType
+    = ArrayBuffer
+    | ElementArrayBuffer
+
+
+
+-- Buffers
+
+
+type alias Buffer =
+    { byteLength : Int
+    , uri : Uri
+    }
+
+
+type Uri
+    = DataUri String
+    | RemoteUri String
 
 
 
@@ -307,10 +342,8 @@ nodesDecoder =
                 )
                 (JD.maybe (JD.field "mesh" JD.int))
                 (JD.maybe (JD.field "camera" JD.int))
-                (JD.oneOf
-                    [ JD.field "matrix" matrixDecoder
-                    , JD.succeed Mat4.identity
-                    ]
+                (defaultDecoder Mat4.identity
+                    (JD.field "matrix" matrixDecoder)
                 )
             )
         )
@@ -449,10 +482,77 @@ accessorsDecoder =
         )
 
 
+
+-- buffer views
+
+
+targetDecoder : JD.Decoder BufferType
+targetDecoder =
+    JD.int
+        |> JD.andThen
+            (\int ->
+                case int of
+                    34962 ->
+                        JD.succeed ArrayBuffer
+
+                    34963 ->
+                        JD.succeed ElementArrayBuffer
+
+                    _ ->
+                        JD.fail
+                            ("Invalid buffer type constant: Got " ++ String.fromInt int)
+            )
+
+
+bufferViewsDecoder : JD.Decoder (List BufferView)
+bufferViewsDecoder =
+    JD.field "bufferViews"
+        (JD.list
+            (JD.map5 BufferView
+                (JD.field "buffer" JD.int)
+                (JD.field "byteOffset" (defaultDecoder 0 JD.int))
+                (JD.field "byteLength" JD.int)
+                (JD.maybe (JD.field "byteStride" JD.int))
+                (JD.maybe (JD.field "target" targetDecoder))
+            )
+        )
+
+
+
+-- buffers
+
+
+uriDecoder : JD.Decoder Uri
+uriDecoder =
+    JD.string
+        |> JD.map
+            (\uri ->
+                if String.startsWith "data:" uri then
+                    DataUri uri
+
+                else
+                    RemoteUri uri
+            )
+
+
+buffersDecoder : JD.Decoder (List Buffer)
+buffersDecoder =
+    JD.field "buffers"
+        (JD.list
+            (JD.map2
+                Buffer
+                (JD.field "byteLength" JD.int)
+                (JD.field "uri"
+                    uriDecoder
+                )
+            )
+        )
+
+
 gltfEmbeddedDecoder : JD.Decoder GLTF
 gltfEmbeddedDecoder =
     JD.succeed
-        (\version scene scenes cameras nodes meshes accessors ->
+        (\version scene scenes cameras nodes meshes accessors bufferViews buffers ->
             GLTF
                 { version = version
                 , defaultScene = scene
@@ -461,6 +561,8 @@ gltfEmbeddedDecoder =
                 , nodes = nodes
                 , meshes = meshes
                 , accessors = accessors
+                , bufferViews = bufferViews
+                , buffers = buffers
                 }
         )
         |> JDP.required "asset" (JD.field "version" JD.string)
@@ -470,3 +572,5 @@ gltfEmbeddedDecoder =
         |> JDP.custom nodesDecoder
         |> JDP.custom meshesDecoder
         |> JDP.custom accessorsDecoder
+        |> JDP.custom bufferViewsDecoder
+        |> JDP.custom buffersDecoder
