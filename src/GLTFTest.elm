@@ -249,7 +249,7 @@ gltf =
             val
 
         Err err ->
-            Debug.todo "This shouldn't happen"
+            Debug.todo (Debug.toString err)
 
 
 suite : Test

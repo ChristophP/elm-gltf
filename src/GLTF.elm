@@ -1,6 +1,7 @@
 module GLTF exposing (..)
 
 import Json.Decode as JD
+import Json.Decode.Pipeline as JDP
 import Math.Matrix4 as Mat4
 import Set
 import Util
@@ -15,6 +16,7 @@ type GLTF
         , cameras : List Camera
         , nodes : List Node
         , meshes : List (Mesh Attributes)
+        , accessors : List Accessor
         }
 
 
@@ -59,6 +61,39 @@ type alias RawNode =
     , mesh : Maybe Int
     , camera : Maybe Int
     , children : List Int
+    }
+
+
+
+-- Accessors
+
+
+type ComponentType
+    = Byte
+    | UnsignedByte
+    | Short
+    | UnsignedShort
+    | UnsignedInt
+    | Float
+
+
+type NumComponents
+    = Scalar
+    | Vec2
+    | Vec3
+    | Vec4
+    | Mat2
+    | Mat3
+    | Mat4
+
+
+type alias Accessor =
+    { bufferView : Int
+    , byteOffset : Int
+    , componentType : ComponentType
+    , count : Int
+    , minMax : ( List Float, List Float )
+    , type_ : NumComponents
     }
 
 
@@ -329,10 +364,95 @@ meshesDecoder =
         |> JD.map List.concat
 
 
+componentTypeDecoder : JD.Decoder ComponentType
+componentTypeDecoder =
+    JD.int
+        |> JD.andThen
+            (\int ->
+                case int of
+                    5120 ->
+                        JD.succeed Byte
+
+                    5121 ->
+                        JD.succeed UnsignedByte
+
+                    5122 ->
+                        JD.succeed Short
+
+                    5123 ->
+                        JD.succeed UnsignedShort
+
+                    5125 ->
+                        JD.succeed UnsignedInt
+
+                    5126 ->
+                        JD.succeed Float
+
+                    _ ->
+                        JD.fail
+                            ("Found unknown component type constant: Got " ++ String.fromInt int)
+            )
+
+
+numComponentsDecoder : JD.Decoder NumComponents
+numComponentsDecoder =
+    JD.string
+        |> JD.andThen
+            (\type_ ->
+                case type_ of
+                    "SCALAR" ->
+                        JD.succeed Scalar
+
+                    "VEC2" ->
+                        JD.succeed Vec2
+
+                    "VEC3" ->
+                        JD.succeed Vec3
+
+                    "Vec4" ->
+                        JD.succeed Vec4
+
+                    "MAT2" ->
+                        JD.succeed Mat2
+
+                    "MAT3" ->
+                        JD.succeed Mat3
+
+                    "MAT4" ->
+                        JD.succeed Mat4
+
+                    _ ->
+                        JD.fail
+                            ("Found unknown numComponet constant: Got " ++ type_)
+            )
+
+
+minMaxDecoder : JD.Decoder ( List Float, List Float )
+minMaxDecoder =
+    JD.map2 Tuple.pair
+        (JD.field "min" (JD.list JD.float))
+        (JD.field "max" (JD.list JD.float))
+
+
+accessorsDecoder : JD.Decoder (List Accessor)
+accessorsDecoder =
+    JD.field "accessors"
+        (JD.list
+            (JD.map6 Accessor
+                (JD.field "bufferView" JD.int)
+                (JD.field "byteOffset" JD.int)
+                (JD.field "componentType" componentTypeDecoder)
+                (JD.field "count" JD.int)
+                minMaxDecoder
+                (JD.field "type" numComponentsDecoder)
+            )
+        )
+
+
 gltfEmbeddedDecoder : JD.Decoder GLTF
 gltfEmbeddedDecoder =
-    JD.map6
-        (\version scene scenes cameras nodes meshes ->
+    JD.succeed
+        (\version scene scenes cameras nodes meshes accessors ->
             GLTF
                 { version = version
                 , defaultScene = scene
@@ -340,11 +460,13 @@ gltfEmbeddedDecoder =
                 , cameras = cameras
                 , nodes = nodes
                 , meshes = meshes
+                , accessors = accessors
                 }
         )
-        (JD.field "asset" (JD.field "version" JD.string))
-        defaultSceneDecoder
-        scenesDecoder
-        camerasDecoder
-        nodesDecoder
-        meshesDecoder
+        |> JDP.required "asset" (JD.field "version" JD.string)
+        |> JDP.custom defaultSceneDecoder
+        |> JDP.custom scenesDecoder
+        |> JDP.custom camerasDecoder
+        |> JDP.custom nodesDecoder
+        |> JDP.custom meshesDecoder
+        |> JDP.custom accessorsDecoder
