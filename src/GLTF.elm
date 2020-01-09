@@ -79,7 +79,7 @@ type ComponentType
     | Float
 
 
-type NumComponents
+type StructureType
     = Scalar
     | Vec2
     | Vec3
@@ -95,7 +95,7 @@ type alias Accessor =
     , componentType : ComponentType
     , count : Int
     , minMax : ( List Float, List Float )
-    , type_ : NumComponents
+    , type_ : StructureType
     }
 
 
@@ -360,6 +360,10 @@ type MeshMode
     = Triangles
 
 
+
+-- mode indices? -> Which mesh constructor to use?
+
+
 meshModeDecoder : JD.Decoder MeshMode
 meshModeDecoder =
     JD.int
@@ -427,8 +431,30 @@ componentTypeDecoder =
             )
 
 
-numComponentsDecoder : JD.Decoder NumComponents
-numComponentsDecoder =
+componentTypeSize : ComponentType -> Int
+componentTypeSize type_ =
+    case type_ of
+        Byte ->
+            1
+
+        UnsignedByte ->
+            1
+
+        Short ->
+            2
+
+        UnsignedShort ->
+            2
+
+        UnsignedInt ->
+            4
+
+        Float ->
+            4
+
+
+structureTypeDecoder : JD.Decoder StructureType
+structureTypeDecoder =
     JD.string
         |> JD.andThen
             (\type_ ->
@@ -460,6 +486,31 @@ numComponentsDecoder =
             )
 
 
+numComponents : StructureType -> Int
+numComponents type_ =
+    case type_ of
+        Scalar ->
+            1
+
+        Vec2 ->
+            2
+
+        Vec3 ->
+            3
+
+        Vec4 ->
+            4
+
+        Mat2 ->
+            4
+
+        Mat3 ->
+            9
+
+        Mat4 ->
+            16
+
+
 minMaxDecoder : JD.Decoder ( List Float, List Float )
 minMaxDecoder =
     JD.map2 Tuple.pair
@@ -477,7 +528,7 @@ accessorsDecoder =
                 (JD.field "componentType" componentTypeDecoder)
                 (JD.field "count" JD.int)
                 minMaxDecoder
-                (JD.field "type" numComponentsDecoder)
+                (JD.field "type" structureTypeDecoder)
             )
         )
 
