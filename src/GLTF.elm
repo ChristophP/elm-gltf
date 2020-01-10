@@ -1,10 +1,13 @@
 module GLTF exposing (..)
 
+import Buffer exposing (Buffer)
+import Bytes exposing (Bytes)
+import Bytes.Extra as BE
 import Json.Decode as JD
 import Json.Decode.Pipeline as JDP
 import Math.Matrix4 as Mat4
 import Set
-import Util exposing (defaultDecoder)
+import Util exposing (defaultDecoder, listGetAt, maybeSequence)
 import WebGL exposing (Mesh)
 
 
@@ -118,49 +121,12 @@ type BufferType
 
 
 
--- Buffers
-
-
-type alias Buffer =
-    { byteLength : Int
-    , uri : Uri
-    }
-
-
-type Uri
-    = DataUri String
-    | RemoteUri String
-
-
-
--- list find helper
-
-
-listFind : Int -> List a -> Maybe a
-listFind index list =
-    listFindHelp index list 0
-
-
-listFindHelp index list currentIndex =
-    case list of
-        head :: tail ->
-            if currentIndex == index then
-                Just head
-
-            else
-                listFindHelp index tail (currentIndex + 1)
-
-        [] ->
-            Nothing
-
-
-
 -- getters
 
 
 getDefaultScene : GLTF -> Maybe Scene
 getDefaultScene (GLTF data) =
-    listFind data.defaultScene data.scenes
+    listGetAt data.defaultScene data.scenes
 
 
 getScenes : GLTF -> List Scene
@@ -573,16 +539,16 @@ bufferViewsDecoder =
 -- buffers
 
 
-uriDecoder : JD.Decoder Uri
+uriDecoder : JD.Decoder Buffer.Uri
 uriDecoder =
     JD.string
         |> JD.map
             (\uri ->
                 if String.startsWith "data:" uri then
-                    DataUri uri
+                    Buffer.DataUri uri
 
                 else
-                    RemoteUri uri
+                    Buffer.RemoteUri uri
             )
 
 
@@ -625,3 +591,63 @@ gltfEmbeddedDecoder =
         |> JDP.custom accessorsDecoder
         |> JDP.custom bufferViewsDecoder
         |> JDP.custom buffersDecoder
+
+
+
+-- resolving attributes
+
+
+type alias ResolvedAccessor =
+    { viewOffset : Int
+    , componentType : ComponentType
+    , count : Int
+    , minMax : ( List Float, List Float )
+    , type_ : StructureType
+    , buffer : Bytes
+    , accessorOffset : Int
+    , byteStride : Maybe Int
+    , target : Maybe BufferType
+    }
+
+
+resolveAccessors : GLTF -> Maybe (List ResolvedAccessor)
+resolveAccessors (GLTF gltf) =
+    let
+        maybeBuffers =
+            List.foldr
+                (\current seq ->
+                    Maybe.map2 (::)
+                        (Buffer.toBytes current.uri)
+                        seq
+                )
+                (Just [])
+                gltf.buffers
+
+        toResolvedAccessor ( accessor, bufferView, buffer ) =
+            { viewOffset = bufferView.byteOffset
+            , componentType = accessor.componentType
+            , count = accessor.count
+            , minMax = accessor.minMax
+            , type_ = accessor.type_
+            , buffer = buffer
+            , accessorOffset = accessor.byteOffset
+            , byteStride = bufferView.byteStride
+            , target = bufferView.target
+            }
+
+        collectData buffers accessor =
+            listGetAt accessor.bufferView gltf.bufferViews
+                |> Maybe.andThen
+                    (\bufferView ->
+                        listGetAt bufferView.buffer buffers
+                            |> Maybe.map (\buffer -> ( accessor, bufferView, buffer ))
+                    )
+                |> Maybe.map toResolvedAccessor
+    in
+    maybeBuffers
+        |> Maybe.andThen
+            (\buffers ->
+                List.map (collectData buffers)
+                    gltf.accessors
+                    |> maybeSequence
+            )

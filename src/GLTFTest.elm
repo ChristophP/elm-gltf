@@ -279,4 +279,13 @@ suite =
             \() ->
                 List.length (GLTF.getCameras gltf)
                     |> Expect.equal 1
+        , test "resolving accessors" <|
+            \() ->
+                case GLTF.resolveAccessors gltf of
+                    Just accessors ->
+                        List.length accessors
+                            |> Expect.equal 4
+
+                    Nothing ->
+                        Expect.fail "Could not resolve accessors"
         ]
