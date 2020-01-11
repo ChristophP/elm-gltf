@@ -4,6 +4,7 @@ import Base64
 import Bytes exposing (Bytes)
 import Bytes.Decode as BD
 import Bytes.Decode.Extra as BDE
+import Util
 import WebGL
 
 
@@ -149,6 +150,16 @@ toBytes uri =
         |> Base64.toBytes
 
 
-decodeIndices : BD.Decoder (List Int)
-decodeIndices =
-    BDE.withOffset 76768 <| BDE.list 12636 (BD.unsignedInt16 Bytes.LE)
+indicesDecoder : ResolvedAccessor -> BD.Decoder (List ( Int, Int, Int ))
+indicesDecoder { accessorOffset, viewOffset, count } =
+    BDE.withOffset (accessorOffset + viewOffset)
+        (BDE.list count (BD.unsignedInt16 Bytes.LE))
+        |> BD.andThen
+            (\list ->
+                case Util.listToTriples list of
+                    Just triples ->
+                        BD.succeed triples
+
+                    Nothing ->
+                        BD.fail
+            )

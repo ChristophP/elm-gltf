@@ -1,4 +1,10 @@
-module Util exposing (defaultDecoder, listGetAt, maybeSequence, toIndexedList)
+module Util exposing
+    ( defaultDecoder
+    , listGetAt
+    , listToTriples
+    , maybeSequence
+    , toIndexedList
+    )
 
 import Json.Decode as JD
 
@@ -38,4 +44,22 @@ listGetAtHelp index list currentIndex =
                 listGetAtHelp index tail (currentIndex + 1)
 
         [] ->
+            Nothing
+
+
+listToTriples : List a -> Maybe (List ( a, a, a ))
+listToTriples list =
+    listToTriplesHelp list []
+
+
+listToTriplesHelp : List a -> List ( a, a, a ) -> Maybe (List ( a, a, a ))
+listToTriplesHelp list triples =
+    case list of
+        [ x, y, z ] ->
+            Just (List.reverse (( x, y, z ) :: triples))
+
+        x :: y :: z :: rest ->
+            listToTriplesHelp rest (( x, y, z ) :: triples)
+
+        _ ->
             Nothing

@@ -1,6 +1,8 @@
 module Mesh exposing (..)
 
 import Buffer
+import Bytes.Decode as BD
+import Util exposing (listGetAt)
 import WebGL
 
 
@@ -21,8 +23,8 @@ type alias Mesh =
     }
 
 
-extractMesh : List Buffer.ResolvedAccessor -> Mesh -> WebGL.Mesh Attributes
-extractMesh resAccessor meshData =
+extractMesh : List Buffer.ResolvedAccessor -> Mesh -> Maybe (WebGL.Mesh Attributes)
+extractMesh resAccessors meshData =
     -- TODO make sure to handle different shapes of attributes in the future
     let
         -- look at mesh attributes, for each one decode a buffer to some list of values
@@ -36,12 +38,17 @@ extractMesh resAccessor meshData =
             []
 
         maybeIndices =
-            Just []
+            meshData.indices
+                |> Maybe.andThen (\index -> listGetAt index resAccessors)
+                |> Maybe.andThen
+                    (\({ buffer } as accessor) ->
+                        BD.decode (Buffer.indicesDecoder accessor) buffer
+                    )
     in
     -- then take those value lists and turn them into a proper mesh
     case maybeIndices of
         Just indices ->
-            WebGL.indexedTriangles [] indices
+            Just (WebGL.indexedTriangles [] indices)
 
         Nothing ->
-            WebGL.triangles []
+            Just (WebGL.triangles [])
