@@ -55,11 +55,11 @@ listToTriples list =
 listToTriplesHelp : List a -> List ( a, a, a ) -> Maybe (List ( a, a, a ))
 listToTriplesHelp list triples =
     case list of
-        [ x, y, z ] ->
-            Just (List.reverse (( x, y, z ) :: triples))
-
         x :: y :: z :: rest ->
             listToTriplesHelp rest (( x, y, z ) :: triples)
+
+        [] ->
+            Just (List.reverse triples)
 
         _ ->
             Nothing
