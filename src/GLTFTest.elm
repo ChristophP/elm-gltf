@@ -283,7 +283,7 @@ suite =
             \() ->
                 case GLTF.resolveAccessors gltf of
                     Just accessors ->
-                        List.length accessors
+                        List.length (Debug.log "accessors" accessors)
                             |> Expect.equal 4
 
                     Nothing ->

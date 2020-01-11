@@ -1,14 +1,15 @@
 module GLTF exposing (..)
 
-import Buffer exposing (Buffer)
+import Buffer exposing (Accessor, Buffer, BufferView)
 import Bytes exposing (Bytes)
 import Bytes.Extra as BE
 import Json.Decode as JD
 import Json.Decode.Pipeline as JDP
 import Math.Matrix4 as Mat4
+import Mesh exposing (Attributes, Mesh)
 import Set
 import Util exposing (defaultDecoder, listGetAt, maybeSequence)
-import WebGL exposing (Mesh)
+import WebGL
 
 
 type GLTF
@@ -18,7 +19,7 @@ type GLTF
         , scenes : List Scene
         , cameras : List Camera
         , nodes : List Node
-        , meshes : List (Mesh Attributes)
+        , meshes : List Mesh
         , accessors : List Accessor
         , bufferViews : List BufferView
         , buffers : List Buffer
@@ -67,57 +68,6 @@ type alias RawNode =
     , camera : Maybe Int
     , children : List Int
     }
-
-
-
--- Accessors
-
-
-type ComponentType
-    = Byte
-    | UnsignedByte
-    | Short
-    | UnsignedShort
-    | UnsignedInt
-    | Float
-
-
-type StructureType
-    = Scalar
-    | Vec2
-    | Vec3
-    | Vec4
-    | Mat2
-    | Mat3
-    | Mat4
-
-
-type alias Accessor =
-    { bufferView : Int
-    , byteOffset : Int
-    , componentType : ComponentType
-    , count : Int
-    , minMax : ( List Float, List Float )
-    , type_ : StructureType
-    }
-
-
-
--- buffer views
-
-
-type alias BufferView =
-    { buffer : Int
-    , byteOffset : Int
-    , byteLength : Int
-    , byteStride : Maybe Int
-    , target : Maybe BufferType
-    }
-
-
-type BufferType
-    = ArrayBuffer
-    | ElementArrayBuffer
 
 
 
@@ -316,35 +266,21 @@ nodesDecoder =
         |> JD.map buildTreeFromRootNodes
 
 
-type alias Attributes =
-    { normal : Int
-    , position : Int
-    }
-
-
-type MeshMode
-    = Triangles
-
-
-
--- mode indices? -> Which mesh constructor to use?
-
-
-meshModeDecoder : JD.Decoder MeshMode
+meshModeDecoder : JD.Decoder Mesh.MeshMode
 meshModeDecoder =
     JD.int
         |> JD.andThen
             (\int ->
                 case int of
                     4 ->
-                        JD.succeed Triangles
+                        JD.succeed Mesh.Triangles
 
                     _ ->
                         JD.fail ("Unknown Mesh Mode constant: Got " ++ String.fromInt int)
             )
 
 
-meshesDecoder : JD.Decoder (List (Mesh Attributes))
+meshesDecoder : JD.Decoder (List Mesh)
 meshesDecoder =
     let
         attributesDecoder =
@@ -356,9 +292,9 @@ meshesDecoder =
         (JD.list
             (JD.field "primitives"
                 (JD.list
-                    (JD.map3 (\attr indices mode -> WebGL.triangles [])
+                    (JD.map3 Mesh
                         (JD.field "attributes" attributesDecoder)
-                        (JD.field "indices" JD.int)
+                        (JD.maybe (JD.field "indices" JD.int))
                         (JD.field "mode" meshModeDecoder)
                     )
                 )
@@ -367,29 +303,29 @@ meshesDecoder =
         |> JD.map List.concat
 
 
-componentTypeDecoder : JD.Decoder ComponentType
+componentTypeDecoder : JD.Decoder Buffer.ComponentType
 componentTypeDecoder =
     JD.int
         |> JD.andThen
             (\int ->
                 case int of
                     5120 ->
-                        JD.succeed Byte
+                        JD.succeed Buffer.Byte
 
                     5121 ->
-                        JD.succeed UnsignedByte
+                        JD.succeed Buffer.UnsignedByte
 
                     5122 ->
-                        JD.succeed Short
+                        JD.succeed Buffer.Short
 
                     5123 ->
-                        JD.succeed UnsignedShort
+                        JD.succeed Buffer.UnsignedShort
 
                     5125 ->
-                        JD.succeed UnsignedInt
+                        JD.succeed Buffer.UnsignedInt
 
                     5126 ->
-                        JD.succeed Float
+                        JD.succeed Buffer.Float
 
                     _ ->
                         JD.fail
@@ -397,84 +333,37 @@ componentTypeDecoder =
             )
 
 
-componentTypeSize : ComponentType -> Int
-componentTypeSize type_ =
-    case type_ of
-        Byte ->
-            1
-
-        UnsignedByte ->
-            1
-
-        Short ->
-            2
-
-        UnsignedShort ->
-            2
-
-        UnsignedInt ->
-            4
-
-        Float ->
-            4
-
-
-structureTypeDecoder : JD.Decoder StructureType
+structureTypeDecoder : JD.Decoder Buffer.StructureType
 structureTypeDecoder =
     JD.string
         |> JD.andThen
             (\type_ ->
                 case type_ of
                     "SCALAR" ->
-                        JD.succeed Scalar
+                        JD.succeed Buffer.Scalar
 
                     "VEC2" ->
-                        JD.succeed Vec2
+                        JD.succeed Buffer.Vec2
 
                     "VEC3" ->
-                        JD.succeed Vec3
+                        JD.succeed Buffer.Vec3
 
                     "Vec4" ->
-                        JD.succeed Vec4
+                        JD.succeed Buffer.Vec4
 
                     "MAT2" ->
-                        JD.succeed Mat2
+                        JD.succeed Buffer.Mat2
 
                     "MAT3" ->
-                        JD.succeed Mat3
+                        JD.succeed Buffer.Mat3
 
                     "MAT4" ->
-                        JD.succeed Mat4
+                        JD.succeed Buffer.Mat4
 
                     _ ->
                         JD.fail
                             ("Found unknown numComponet constant: Got " ++ type_)
             )
-
-
-numComponents : StructureType -> Int
-numComponents type_ =
-    case type_ of
-        Scalar ->
-            1
-
-        Vec2 ->
-            2
-
-        Vec3 ->
-            3
-
-        Vec4 ->
-            4
-
-        Mat2 ->
-            4
-
-        Mat3 ->
-            9
-
-        Mat4 ->
-            16
 
 
 minMaxDecoder : JD.Decoder ( List Float, List Float )
@@ -503,17 +392,17 @@ accessorsDecoder =
 -- buffer views
 
 
-targetDecoder : JD.Decoder BufferType
+targetDecoder : JD.Decoder Buffer.BufferType
 targetDecoder =
     JD.int
         |> JD.andThen
             (\int ->
                 case int of
                     34962 ->
-                        JD.succeed ArrayBuffer
+                        JD.succeed Buffer.ArrayBuffer
 
                     34963 ->
-                        JD.succeed ElementArrayBuffer
+                        JD.succeed Buffer.ElementArrayBuffer
 
                     _ ->
                         JD.fail
@@ -593,24 +482,7 @@ gltfEmbeddedDecoder =
         |> JDP.custom buffersDecoder
 
 
-
--- resolving attributes
-
-
-type alias ResolvedAccessor =
-    { viewOffset : Int
-    , componentType : ComponentType
-    , count : Int
-    , minMax : ( List Float, List Float )
-    , type_ : StructureType
-    , buffer : Bytes
-    , accessorOffset : Int
-    , byteStride : Maybe Int
-    , target : Maybe BufferType
-    }
-
-
-resolveAccessors : GLTF -> Maybe (List ResolvedAccessor)
+resolveAccessors : GLTF -> Maybe (List Buffer.ResolvedAccessor)
 resolveAccessors (GLTF gltf) =
     let
         maybeBuffers =
@@ -647,7 +519,6 @@ resolveAccessors (GLTF gltf) =
     maybeBuffers
         |> Maybe.andThen
             (\buffers ->
-                List.map (collectData buffers)
-                    gltf.accessors
+                List.map (collectData buffers) gltf.accessors
                     |> maybeSequence
             )
