@@ -4,6 +4,7 @@ import Base64
 import Bytes exposing (Bytes)
 import Bytes.Decode as BD
 import Bytes.Decode.Extra as BDE
+import Math.Vector3 exposing (Vec3, vec3)
 import Util
 import WebGL
 
@@ -152,6 +153,18 @@ toBytes uri =
 
 indicesDecoder : ResolvedAccessor -> BD.Decoder (List ( Int, Int, Int ))
 indicesDecoder { accessorOffset, viewOffset, count } =
+    BDE.withOffset (accessorOffset + viewOffset)
+        (BDE.list (count // 3)
+            (BD.map3 (\a b c -> ( a, b, c ))
+                (BD.unsignedInt16 Bytes.LE)
+                (BD.unsignedInt16 Bytes.LE)
+                (BD.unsignedInt16 Bytes.LE)
+            )
+        )
+
+
+positionsDecoder : ResolvedAccessor -> BD.Decoder (List Vec3)
+positionsDecoder { accessorOffset, viewOffset, count } =
     BDE.withOffset (accessorOffset + viewOffset)
         (BDE.list count (BD.unsignedInt16 Bytes.LE))
         |> BD.andThen
