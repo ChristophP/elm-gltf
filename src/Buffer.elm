@@ -151,8 +151,8 @@ toBytes uri =
         |> Base64.toBytes
 
 
-indicesDecoder : ResolvedAccessor -> BD.Decoder (List ( Int, Int, Int ))
-indicesDecoder { accessorOffset, viewOffset, count } =
+intTriplesDecoder : ResolvedAccessor -> BD.Decoder (List ( Int, Int, Int ))
+intTriplesDecoder { accessorOffset, viewOffset, count } =
     BDE.withOffset (accessorOffset + viewOffset)
         (BDE.list (count // 3)
             (BD.map3 (\a b c -> ( a, b, c ))
