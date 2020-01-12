@@ -503,7 +503,7 @@ resolveAccessors (GLTF gltf) =
             , type_ = accessor.type_
             , buffer = buffer
             , accessorOffset = accessor.byteOffset
-            , byteStride = bufferView.byteStride
+            , byteStride = Maybe.withDefault 0 bufferView.byteStride
             , target = bufferView.target
             }
 

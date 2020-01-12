@@ -130,7 +130,7 @@ type alias ResolvedAccessor =
     , type_ : StructureType
     , buffer : Bytes
     , accessorOffset : Int
-    , byteStride : Maybe Int
+    , byteStride : Int
     , target : Maybe BufferType
     }
 
@@ -163,16 +163,15 @@ indicesDecoder { accessorOffset, viewOffset, count } =
         )
 
 
-positionsDecoder : ResolvedAccessor -> BD.Decoder (List Vec3)
-positionsDecoder { accessorOffset, viewOffset, count } =
+vec3ListDecoder : ResolvedAccessor -> BD.Decoder (List Vec3)
+vec3ListDecoder { accessorOffset, viewOffset, count, byteStride } =
     BDE.withOffset (accessorOffset + viewOffset)
-        (BDE.list count (BD.unsignedInt16 Bytes.LE))
-        |> BD.andThen
-            (\list ->
-                case Util.listToTriples list of
-                    Just triples ->
-                        BD.succeed triples
-
-                    Nothing ->
-                        BD.fail
+        (BDE.list count
+            (BD.map4 (\x y z _ -> vec3 x y z)
+                (BD.float32 Bytes.LE)
+                (BD.float32 Bytes.LE)
+                (BD.float32 Bytes.LE)
+                -- skip till number of bytes in bytestride is reached
+                (BD.bytes (max 0 (byteStride - 12)))
             )
+        )
