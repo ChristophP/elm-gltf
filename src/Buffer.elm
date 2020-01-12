@@ -4,6 +4,7 @@ import Base64
 import Bytes exposing (Bytes)
 import Bytes.Decode as BD
 import Bytes.Decode.Extra as BDE
+import Math.Vector2 exposing (Vec2, vec2)
 import Math.Vector3 exposing (Vec3, vec3)
 import Util
 import WebGL
@@ -173,5 +174,18 @@ vec3ListDecoder { accessorOffset, viewOffset, count, byteStride } =
                 (BD.float32 Bytes.LE)
                 -- skip till number of bytes in bytestride is reached
                 (BD.bytes (max 0 (byteStride - 12)))
+            )
+        )
+
+
+vec2ListDecoder : ResolvedAccessor -> BD.Decoder (List Vec2)
+vec2ListDecoder { accessorOffset, viewOffset, count, byteStride } =
+    BDE.withOffset (accessorOffset + viewOffset)
+        (BDE.list count
+            (BD.map3 (\x y _ -> vec2 x y)
+                (BD.float32 Bytes.LE)
+                (BD.float32 Bytes.LE)
+                -- skip till number of bytes in bytestride is reached
+                (BD.bytes (max 0 (byteStride - 8)))
             )
         )

@@ -289,9 +289,10 @@ meshesDecoder : JD.Decoder (List Mesh)
 meshesDecoder =
     let
         attributesDecoder =
-            JD.map2 Attributes
+            JD.map3 Attributes
                 (JD.field "NORMAL" JD.int)
                 (JD.field "POSITION" JD.int)
+                (JD.field "TEXCOORD_0" JD.int)
     in
     JD.field "meshes"
         (JD.list

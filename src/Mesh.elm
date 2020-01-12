@@ -2,6 +2,7 @@ module Mesh exposing (..)
 
 import Buffer
 import Bytes.Decode as BD
+import Math.Vector2 exposing (Vec2)
 import Math.Vector3 exposing (Vec3)
 import Util exposing (listGetAt, listToTriples)
 import WebGL
@@ -10,6 +11,7 @@ import WebGL
 type alias Attributes =
     { normal : Int
     , position : Int
+    , texCoords : Int
     }
 
 
@@ -24,13 +26,22 @@ type alias Mesh =
     }
 
 
-type alias PositionNormalAttributes =
+
+-- TODO add support for "at least two textures" according to spec
+-- https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#meshes
+
+
+type alias PositionNormalTexCoordsAttributes =
     { position : Vec3
     , normal : Vec3
+    , texCoords : Vec2
     }
 
 
-extractMesh : List Buffer.ResolvedAccessor -> Mesh -> Maybe (WebGL.Mesh PositionNormalAttributes)
+extractMesh :
+    List Buffer.ResolvedAccessor
+    -> Mesh
+    -> Maybe (WebGL.Mesh PositionNormalTexCoordsAttributes)
 extractMesh resAccessors meshData =
     -- TODO make sure to handle different shapes of attributes in the future
     let
@@ -49,11 +60,19 @@ extractMesh resAccessors meshData =
                         BD.decode (Buffer.vec3ListDecoder accessor) buffer
                     )
 
+        texCoords =
+            listGetAt meshData.attributes.texCoords resAccessors
+                |> Maybe.andThen
+                    (\({ buffer } as accessor) ->
+                        BD.decode (Buffer.vec2ListDecoder accessor) buffer
+                    )
+
         maybeAttributes =
-            Maybe.map2
-                (List.map2 PositionNormalAttributes)
+            Maybe.map3
+                (List.map3 PositionNormalTexCoordsAttributes)
                 positions
                 normals
+                texCoords
 
         maybeIndices =
             meshData.indices
