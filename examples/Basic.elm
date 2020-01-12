@@ -16,6 +16,10 @@ type alias Model =
     { meshes : List (Maybe (WebGL.Mesh Mesh.PositionNormalAttributes)) }
 
 
+canvas =
+    { width = 400, height = 400 }
+
+
 initialModel : Model
 initialModel =
     case JD.decodeString GLTF.gltfEmbeddedDecoder duckEmbedded of
@@ -62,8 +66,8 @@ uniforms : Uniforms
 uniforms =
     { transform =
         --Mat4.identity
-        Mat4.mul (Mat4.makePerspective 45 (800 / 600) 1 -1)
-            (Mat4.makeLookAt (vec3 0 0 1000) (vec3 0 0 0) (vec3 0 1 0))
+        Mat4.mul (Mat4.makePerspective 45 (canvas.width / canvas.height) 1 -1)
+            (Mat4.makeLookAt (vec3 0 0 500) (vec3 0 0 0) (vec3 0 1 0))
     }
 
 
@@ -90,8 +94,12 @@ entities model =
 view : Model -> Html Msg
 view model =
     div []
-        [ div [] [ text "GLTF what the 🦆" ]
-        , WebGL.toHtml [ width 800, height 600, style "border" "1px dashed gray" ]
+        [ div [] [ text "GLTF what the \u{1F986}" ]
+        , WebGL.toHtml
+            [ width canvas.width
+            , height canvas.height
+            , style "border" "1px dashed gray"
+            ]
             (entities model)
         ]
 
