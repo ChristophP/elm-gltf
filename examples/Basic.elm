@@ -5,18 +5,33 @@ import GLTF
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, style, width)
 import Html.Events exposing (onClick)
+import Json.Decode as JD
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 exposing (Vec3, vec3)
+import Mesh
 import WebGL
 
 
 type alias Model =
-    { scene : Int }
+    { meshes : List (Maybe (WebGL.Mesh Mesh.PositionNormalAttributes)) }
 
 
 initialModel : Model
 initialModel =
-    { scene = 0 }
+    case JD.decodeString GLTF.gltfEmbeddedDecoder duckEmbedded of
+        Ok gltf ->
+            case GLTF.resolveAccessors gltf of
+                Just accessors ->
+                    { meshes =
+                        List.map (Mesh.extractMesh accessors)
+                            (GLTF.getMeshes gltf)
+                    }
+
+                Nothing ->
+                    { meshes = [] }
+
+        Err err ->
+            Debug.todo "Oh no"
 
 
 type Msg
@@ -48,26 +63,36 @@ uniforms =
     { transform =
         --Mat4.identity
         Mat4.mul (Mat4.makePerspective 45 (800 / 600) 1 -1)
-            (Mat4.makeLookAt (vec3 0 0 10) (vec3 0 0 0) (vec3 0 1 0))
+            (Mat4.makeLookAt (vec3 0 0 1000) (vec3 0 0 0) (vec3 0 1 0))
     }
+
+
+entities : Model -> List WebGL.Entity
+entities model =
+    List.map
+        (\maybeMesh ->
+            case maybeMesh of
+                Just mesh ->
+                    WebGL.entity vertexShader
+                        fragmentShader
+                        mesh
+                        uniforms
+
+                Nothing ->
+                    WebGL.entity vertexShader
+                        fragmentShader
+                        (WebGL.triangles [])
+                        uniforms
+        )
+        model.meshes
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ div [] [ text "Show something" ]
+        [ div [] [ text "GLTF what the 🦆" ]
         , WebGL.toHtml [ width 800, height 600, style "border" "1px dashed gray" ]
-            [ WebGL.entity vertexShader
-                fragmentShader
-                (WebGL.triangles
-                    [ ( { position = vec3 -0.5 0 0, normal = vec3 1 1 1 }
-                      , { position = vec3 0.5 0 0, normal = vec3 1 1 1 }
-                      , { position = vec3 0 0.5 0, normal = vec3 1 1 1 }
-                      )
-                    ]
-                )
-                uniforms
-            ]
+            (entities model)
         ]
 
 

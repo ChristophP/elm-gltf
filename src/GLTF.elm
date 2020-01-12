@@ -89,6 +89,11 @@ getCameras (GLTF data) =
     data.cameras
 
 
+getMeshes : GLTF -> List Mesh
+getMeshes (GLTF data) =
+    data.meshes
+
+
 
 -- decoders
 
