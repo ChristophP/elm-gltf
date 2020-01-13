@@ -82,7 +82,6 @@ type alias Uniforms =
 uniforms : Texture -> Uniforms
 uniforms texture =
     { transform =
-        --Mat4.identity
         Mat4.mul (Mat4.makePerspective 45 (canvas.width / canvas.height) 1 -1)
             (Mat4.makeLookAt (vec3 0 0 500) (vec3 0 0 0) (vec3 0 1 0))
     , texture = texture
@@ -91,26 +90,27 @@ uniforms texture =
 
 viewCanvas : Model -> Html Msg
 viewCanvas model =
-    div [] <|
-        List.map
-            (\maybeMesh ->
-                case ( maybeMesh, model.texture ) of
-                    ( Just mesh, Just texture ) ->
-                        WebGL.toHtml
-                            [ width canvas.width
-                            , height canvas.height
-                            , style "border" "1px dashed gray"
-                            ]
-                            [ WebGL.entity vertexShader
+    case model.texture of
+        Just texture ->
+            WebGL.toHtml
+                [ width canvas.width
+                , height canvas.height
+                , style "border" "1px dashed gray"
+                ]
+                (List.filterMap
+                    (Maybe.map
+                        (\mesh ->
+                            WebGL.entity vertexShader
                                 fragmentShader
                                 mesh
                                 (uniforms texture)
-                            ]
+                        )
+                    )
+                    model.meshes
+                )
 
-                    _ ->
-                        div [ style "color" "red" ] [ text "Waiting for canvas ..." ]
-            )
-            model.meshes
+        Nothing ->
+            div [] [ text "Waiting for texture ..." ]
 
 
 view : Model -> Html Msg
