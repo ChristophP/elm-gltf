@@ -6,8 +6,6 @@ import Bytes.Decode as BD
 import Bytes.Decode.Extra as BDE
 import Math.Vector2 exposing (Vec2, vec2)
 import Math.Vector3 exposing (Vec3, vec3)
-import Util
-import WebGL
 
 
 type alias Buffer =
