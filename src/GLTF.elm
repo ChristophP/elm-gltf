@@ -63,14 +63,6 @@ type Node
     | Group Mat4.Mat4 (List Int)
 
 
-type alias RawNode =
-    { matrix : Mat4.Mat4
-    , mesh : Maybe Int
-    , camera : Maybe Int
-    , children : List Int
-    }
-
-
 
 -- getters
 
@@ -190,63 +182,6 @@ matrixDecoder =
                     _ ->
                         JD.fail "Matrix did not have the correct number of 16 entries"
             )
-
-
-getRootNodes : List ( Int, RawNode ) -> List RawNode
-getRootNodes indexedNodes =
-    let
-        childrenIndices =
-            List.concatMap (Tuple.second >> .children) indexedNodes
-                |> Set.fromList
-    in
-    List.filterMap
-        (\( index, node ) ->
-            -- if node is not anyone's child it is a root node
-            if Set.member index childrenIndices then
-                Nothing
-
-            else
-                Just node
-        )
-        indexedNodes
-
-
-
---buildTreeFromRootNodesHelp : List ( Int, RawNode ) -> RawNode -> Node
---buildTreeFromRootNodesHelp allNodes rootNode =
---case rootNode.children of
---[] ->
---Node rootNode.matrix
---{ mesh = rootNode.mesh
---, camera = rootNode.camera
---}
-
-
-
---children ->
---let
---childNodes =
---List.filterMap
---(\( index, node ) ->
---if List.member index rootNode.children then
---Just (buildTreeFromRootNodesHelp allNodes node)
---else
---Nothing
---)
---allNodes
---in
---Group rootNode.matrix childNodes
---buildTreeFromRootNodes : List RawNode -> List Node
---buildTreeFromRootNodes rawNodes =
---let
---indexedNodes =
---Util.toIndexedList rawNodes
---rootNodes =
---getRootNodes indexedNodes
---in
---List.map
---(buildTreeFromRootNodesHelp indexedNodes)
---rootNodes
 
 
 nodesDecoder : JD.Decoder (List Node)
