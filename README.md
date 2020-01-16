@@ -21,4 +21,5 @@ Things that can get expensive when done a lot:
 
 ### 2020-01-12 Displaying some geometry
 ![First Result](/result_01.png?raw=true "First Result")
+### 2020-01-17 Showing some (hardcoded) texture
 ![Second Result](/result_02.png?raw=true "Second Result")
