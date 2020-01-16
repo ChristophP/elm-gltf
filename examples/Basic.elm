@@ -37,6 +37,7 @@ init _ =
                       , texture = Nothing
                       }
                     , Task.attempt GotTexture <|
+                      -- TODO make this dynamic instead of hardcoded
                         Texture.loadWith
                             { magnify = Texture.linear
                             , minify = Texture.nearestMipmapLinear
