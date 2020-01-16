@@ -6,5 +6,18 @@ Link to GLTF cheat sheet [here](https://www.khronos.org/files/gltf20-reference-g
 
 ## Current Results
 
+Idea: Create 3 levels
+
+Low-Level: Raw GLTF (normalized, looks like GLTF, Buffers unparsed)
+Mid-Level: Tree of things(denormalized, buffers parsed)
+High-Level: Just a list of Drawables, and a list of cameras.
+
+Things that can get expensive when done a lot:
+- parsing buffers
+- resolving relationsships:
+  - accessors
+  - nodes -> meshes
+  - material -> textures
+
 ### 2020-01-12 Displaying some geometry
 ![First Result](/result_01.png?raw=true "First Result")
