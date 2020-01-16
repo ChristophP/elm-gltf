@@ -58,8 +58,9 @@ type alias Transformation =
 
 
 type Node
-    = Node Mat4.Mat4 { mesh : Maybe Int, camera : Maybe Int }
-    | Group Mat4.Mat4 (List Node)
+    = MeshNode Mat4.Mat4 Int
+    | CameraNode Mat4.Mat4 Int
+    | Group Mat4.Mat4 (List Int)
 
 
 type alias RawNode =
@@ -210,65 +211,63 @@ getRootNodes indexedNodes =
         indexedNodes
 
 
-buildTreeFromRootNodesHelp : List ( Int, RawNode ) -> RawNode -> Node
-buildTreeFromRootNodesHelp allNodes rootNode =
-    case rootNode.children of
-        [] ->
-            Node rootNode.matrix
-                { mesh = rootNode.mesh
-                , camera = rootNode.camera
-                }
 
-        children ->
-            let
-                childNodes =
-                    List.filterMap
-                        (\( index, node ) ->
-                            if List.member index rootNode.children then
-                                Just (buildTreeFromRootNodesHelp allNodes node)
-
-                            else
-                                Nothing
-                        )
-                        allNodes
-            in
-            -- TODO find children via indices and pass them to the group
-            Group rootNode.matrix childNodes
+--buildTreeFromRootNodesHelp : List ( Int, RawNode ) -> RawNode -> Node
+--buildTreeFromRootNodesHelp allNodes rootNode =
+--case rootNode.children of
+--[] ->
+--Node rootNode.matrix
+--{ mesh = rootNode.mesh
+--, camera = rootNode.camera
+--}
 
 
-buildTreeFromRootNodes : List RawNode -> List Node
-buildTreeFromRootNodes rawNodes =
-    let
-        indexedNodes =
-            Util.toIndexedList rawNodes
 
-        rootNodes =
-            getRootNodes indexedNodes
-    in
-    List.map
-        (buildTreeFromRootNodesHelp indexedNodes)
-        rootNodes
+--children ->
+--let
+--childNodes =
+--List.filterMap
+--(\( index, node ) ->
+--if List.member index rootNode.children then
+--Just (buildTreeFromRootNodesHelp allNodes node)
+--else
+--Nothing
+--)
+--allNodes
+--in
+--Group rootNode.matrix childNodes
+--buildTreeFromRootNodes : List RawNode -> List Node
+--buildTreeFromRootNodes rawNodes =
+--let
+--indexedNodes =
+--Util.toIndexedList rawNodes
+--rootNodes =
+--getRootNodes indexedNodes
+--in
+--List.map
+--(buildTreeFromRootNodesHelp indexedNodes)
+--rootNodes
 
 
 nodesDecoder : JD.Decoder (List Node)
 nodesDecoder =
     JD.field "nodes"
         (JD.list
-            (JD.map4
-                (\children meshIndex cameraIndex matrix ->
-                    RawNode matrix meshIndex cameraIndex children
-                )
-                (JD.maybe (JD.field "children" (JD.list JD.int))
-                    |> JD.map (Maybe.withDefault [])
-                )
-                (JD.maybe (JD.field "mesh" JD.int))
-                (JD.maybe (JD.field "camera" JD.int))
-                (defaultDecoder Mat4.identity
-                    (JD.field "matrix" matrixDecoder)
-                )
+            (defaultDecoder Mat4.identity (JD.field "matrix" matrixDecoder)
+                |> JD.andThen
+                    (\matrix ->
+                        JD.oneOf
+                            [ JD.field "children" (JD.list JD.int) |> JD.map (Group matrix)
+                            , JD.field "mesh" JD.int |> JD.map (MeshNode matrix)
+                            , JD.field "camera" JD.int |> JD.map (CameraNode matrix)
+                            ]
+                    )
             )
         )
-        |> JD.map buildTreeFromRootNodes
+
+
+
+--|> JD.map buildTreeFromRootNodes
 
 
 meshModeDecoder : JD.Decoder Mesh.MeshMode
