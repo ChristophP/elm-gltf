@@ -269,9 +269,6 @@ suite =
                     firstScene =
                         GLTF.getScenes gltf
                             |> getAt 0
-
-                    _ =
-                        Debug.log "check" gltf
                 in
                 GLTF.getDefaultScene gltf
                     |> Expect.equal firstScene
@@ -283,7 +280,7 @@ suite =
             \() ->
                 case GLTF.resolveAccessors gltf of
                     Just accessors ->
-                        List.length (Debug.log "accessors" accessors)
+                        List.length accessors
                             |> Expect.equal 4
 
                     Nothing ->
