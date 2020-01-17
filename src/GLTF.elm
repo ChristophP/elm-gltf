@@ -77,6 +77,11 @@ getScenes (GLTF data) =
     data.scenes
 
 
+getNodes : GLTF -> List Node
+getNodes (GLTF gltf) =
+    gltf.nodes
+
+
 getCameras : GLTF -> List Camera
 getCameras (GLTF data) =
     data.cameras
