@@ -163,25 +163,25 @@ matrixDecoder =
         |> JD.andThen
             (\list ->
                 case list of
-                    [ ix, iy, iz, iw, jx, jy, jz, jw, kx, ky, kz, kw, px, py, pz, pw ] ->
+                    [ m11, m21, m31, m41, m12, m22, m32, m42, m13, m23, m33, m43, m14, m24, m34, m44 ] ->
                         JD.succeed <|
                             Mat4.fromRecord
-                                { m11 = ix
-                                , m21 = iy
-                                , m31 = iz
-                                , m41 = iw
-                                , m12 = jx
-                                , m22 = jy
-                                , m32 = jz
-                                , m42 = jw
-                                , m13 = kx
-                                , m23 = ky
-                                , m33 = kz
-                                , m43 = kw
-                                , m14 = px
-                                , m24 = py
-                                , m34 = pz
-                                , m44 = pw
+                                { m11 = m11
+                                , m21 = m21
+                                , m31 = m31
+                                , m41 = m41
+                                , m12 = m12
+                                , m22 = m22
+                                , m32 = m32
+                                , m42 = m42
+                                , m13 = m13
+                                , m23 = m23
+                                , m33 = m33
+                                , m43 = m43
+                                , m14 = m14
+                                , m24 = m24
+                                , m34 = m34
+                                , m44 = m44
                                 }
 
                     _ ->
