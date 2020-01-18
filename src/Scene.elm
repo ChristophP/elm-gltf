@@ -51,10 +51,6 @@ type alias Scene =
     List Node
 
 
-type alias Drawable =
-    { mesh : WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes }
-
-
 type alias Camera =
     GLTF.Camera
 
