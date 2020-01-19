@@ -61,7 +61,7 @@ init _ =
             ( { meshes = meshes
               , cameras = cameras
               , texture = Nothing
-              , currentViewMatrix = viewTransform
+              , currentViewMatrix = defaultViewTransform
               }
             , Task.attempt GotTexture <|
                 -- TODO make this dynamic instead of hardcoded
@@ -99,7 +99,7 @@ update msg model =
                     String.toInt value
                         |> Maybe.andThen (\index -> listGetAt index model.cameras)
                         |> Maybe.andThen (Tuple.first >> Mat4.inverse)
-                        |> Maybe.withDefault viewTransform
+                        |> Maybe.withDefault defaultViewTransform
             in
             ( { model | currentViewMatrix = matrix }, Cmd.none )
 
@@ -142,37 +142,45 @@ groupMatrix =
         }
 
 
-cameraTransform =
-    Mat4.fromRecord
-        { m11 = -0.7289686799049377
-        , m21 = 0.0
-        , m31 = -0.6845470666885376
-        , m41 = 0.0
-        , m12 = -0.4252049028873444
-        , m22 = 0.7836934328079224
-        , m32 = 0.4527972936630249
-        , m42 = 0.0
-        , m13 = 0.5364750623703003
-        , m23 = 0.6211478114128113
-        , m33 = -0.571287989616394
-        , m43 = 0.0
-        , m14 = 400.1130065917969
-        , m24 = 463.2640075683594
-        , m34 = -431.0780334472656
-        , m44 = 1.0
-        }
+
+--cameraTransform =
+--Mat4.fromRecord
+--{ m11 = -0.7289686799049377
+--, m21 = 0.0
+--, m31 = -0.6845470666885376
+--, m41 = 0.0
+--, m12 = -0.4252049028873444
+--, m22 = 0.7836934328079224
+--, m32 = 0.4527972936630249
+--, m42 = 0.0
+--, m13 = 0.5364750623703003
+--, m23 = 0.6211478114128113
+--, m33 = -0.571287989616394
+--, m43 = 0.0
+--, m14 = 400.1130065917969
+--, m24 = 463.2640075683594
+--, m34 = -431.0780334472656
+--, m44 = 1.0
+--}
 
 
-perspectiveMatrix =
-    Mat4.makePerspective 0.6605925559997559 1.5 1.0 10000.0
+perspectiveMatrix : GLTF.Camera -> Mat4
+perspectiveMatrix (GLTF.Perspective { yfov, aspectRatio, znear, zfar }) =
+    Mat4.mul groupMatrix <|
+        Mat4.makePerspective
+            yfov
+            aspectRatio
+            znear
+            (zfar |> Maybe.withDefault 1000)
 
 
-viewTransform =
-    Mat4.makeLookAt (vec3 0 0 1000) (vec3 0 0 0) (vec3 0 1 0)
+defaultViewTransform : Mat4
+defaultViewTransform =
+    Mat4.makeLookAt (vec3 0 0 10) (vec3 0 0 0) (vec3 0 1 0)
 
 
-cameraEntity : Mat4 -> WebGL.Entity
-cameraEntity currentViewMatrix =
+cameraEntity : Mat4 -> GLTF.Camera -> Mat4 -> WebGL.Entity
+cameraEntity cameraTransform camera currentViewMatrix =
     let
         vShader =
             [glsl|
@@ -208,13 +216,9 @@ cameraEntity currentViewMatrix =
         )
         { transform =
             mulMatrices
-                [ perspectiveMatrix
-
-                --, viewTransform
+                [ perspectiveMatrix camera
                 , currentViewMatrix
-
-                --, Mat4.mul groupMatrix cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
-                , Mat4.mul groupMatrix cameraTransform
+                , cameraTransform
                 , Mat4.makeScale (vec3 20 20 20)
                 ]
         }
@@ -222,15 +226,9 @@ cameraEntity currentViewMatrix =
 
 uniforms : Texture -> Mat4.Mat4 -> GLTF.Camera -> Mat4.Mat4 -> Uniforms
 uniforms texture worldTransform camera currentViewMatrix =
-    let
-        (GLTF.Perspective { yfov, aspectRatio, znear, zfar }) =
-            camera
-    in
     { transform =
         mulMatrices
-            [ Mat4.makePerspective yfov aspectRatio znear (zfar |> Maybe.withDefault -1000)
-
-            --, cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
+            [ perspectiveMatrix camera
             , currentViewMatrix
             , worldTransform
 
@@ -251,7 +249,7 @@ viewCanvas :
     -> Html Msg
 viewCanvas texture cameras meshes currentViewMatrix =
     case List.head cameras of
-        Just ( _, camera ) ->
+        Just ( cameraMatrix, camera ) ->
             div [ style "display" "flex" ]
                 [ WebGL.toHtml
                     [ width canvas.width
@@ -273,7 +271,7 @@ viewCanvas texture cameras meshes currentViewMatrix =
                                     )
                             )
                             meshes
-                        , List.singleton (cameraEntity currentViewMatrix)
+                        , List.singleton (cameraEntity cameraMatrix camera currentViewMatrix)
                         ]
                 , div []
                     [ select [ onInput CameraChanged ] <|
