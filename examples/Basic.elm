@@ -168,41 +168,7 @@ perspectiveMatrix =
 
 
 viewTransform =
-    Mat4.makeLookAt (vec3 0 0 -1000) (vec3 0 0 0) (vec3 0 1 0)
-
-
-uniforms : Texture -> Mat4.Mat4 -> Mat4.Mat4 -> Mat4.Mat4 -> Uniforms
-uniforms texture worldTransform viewPerspectiveMatrix currentViewMatrix =
-    { transform =
-        mulMatrices
-            [ perspectiveMatrix
-
-            --, cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
-            , currentViewMatrix
-            , worldTransform
-
-            --viewPerspectiveMatrix
-            --Mat4.makePerspective 0.66 (canvas.width / canvas.height) 1 10000
-            --, Mat4.makeLookAt (vec3 0 0 -500) (vec3 0 0 0) (vec3 0 1 0)
-            --, worldTransform
-            ]
-    , texture = texture
-    }
-
-
-getCameraAndViewPerspectiveMatrix : List ( Mat4.Mat4, GLTF.Camera ) -> Maybe Mat4.Mat4
-getCameraAndViewPerspectiveMatrix cameras =
-    List.head cameras
-        |> Maybe.andThen
-            (\( transform, GLTF.Perspective { aspectRatio, yfov, zfar, znear } ) ->
-                Mat4.inverse transform
-                    |> Maybe.map
-                        (\viewMatrix ->
-                            Mat4.mul
-                                (Mat4.makePerspective yfov aspectRatio znear (zfar |> Maybe.withDefault -1000))
-                                viewMatrix
-                        )
-            )
+    Mat4.makeLookAt (vec3 0 0 1000) (vec3 0 0 0) (vec3 0 1 0)
 
 
 cameraEntity : Mat4 -> WebGL.Entity
@@ -254,6 +220,29 @@ cameraEntity currentViewMatrix =
         }
 
 
+uniforms : Texture -> Mat4.Mat4 -> GLTF.Camera -> Mat4.Mat4 -> Uniforms
+uniforms texture worldTransform camera currentViewMatrix =
+    let
+        (GLTF.Perspective { yfov, aspectRatio, znear, zfar }) =
+            camera
+    in
+    { transform =
+        mulMatrices
+            [ Mat4.makePerspective yfov aspectRatio znear (zfar |> Maybe.withDefault -1000)
+
+            --, cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
+            , currentViewMatrix
+            , worldTransform
+
+            --viewPerspectiveMatrix
+            --Mat4.makePerspective 0.66 (canvas.width / canvas.height) 1 10000
+            --, Mat4.makeLookAt (vec3 0 0 -500) (vec3 0 0 0) (vec3 0 1 0)
+            --, worldTransform
+            ]
+    , texture = texture
+    }
+
+
 viewCanvas :
     Texture.Texture
     -> List ( Mat4, GLTF.Camera )
@@ -261,8 +250,8 @@ viewCanvas :
     -> Mat4
     -> Html Msg
 viewCanvas texture cameras meshes currentViewMatrix =
-    case getCameraAndViewPerspectiveMatrix cameras of
-        Just viewPerspectiveMatrix ->
+    case List.head cameras of
+        Just ( _, camera ) ->
             div [ style "display" "flex" ]
                 [ WebGL.toHtml
                     [ width canvas.width
@@ -279,7 +268,7 @@ viewCanvas texture cameras meshes currentViewMatrix =
                                     (uniforms
                                         texture
                                         transform
-                                        viewPerspectiveMatrix
+                                        camera
                                         currentViewMatrix
                                     )
                             )
