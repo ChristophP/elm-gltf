@@ -24,7 +24,12 @@ type alias Model =
 
 
 canvas =
-    { width = 400, height = 400 }
+    { width = 600, height = 400 }
+
+
+mulMatrices : List Mat4 -> Mat4
+mulMatrices =
+    List.foldr Mat4.mul Mat4.identity
 
 
 init : flags -> ( Model, Cmd Msg )
@@ -33,11 +38,19 @@ init _ =
         sceneResult =
             JD.decodeString GLTF.gltfEmbeddedDecoder duckEmbedded
                 |> Result.mapError JD.errorToString
+                |> Result.map
+                    (\gltf ->
+                        let
+                            _ =
+                                Debug.log "GLTF" (GLTF.getNodes gltf)
+                        in
+                        gltf
+                    )
                 |> Result.andThen (Scene.makeScene >> Result.fromMaybe "Could not make scene")
                 |> Result.map
                     (\scene ->
-                        ( Scene.getDrawables scene
-                        , Scene.getCameras scene
+                        ( Debug.log "Meshes" <| Scene.getDrawables scene
+                        , Debug.log "Cameras " <| Scene.getCameras scene
                         )
                     )
     in
@@ -94,17 +107,70 @@ type alias Uniforms =
     }
 
 
+groupMatrix =
+    Mat4.fromRecord
+        { m11 = 0.009999999776482582
+        , m21 = 0.0
+        , m31 = 0.0
+        , m41 = 0.0
+        , m12 = 0.0
+        , m22 = 0.009999999776482582
+        , m32 = 0.0
+        , m42 = 0.0
+        , m13 = 0.0
+        , m23 = 0.0
+        , m33 = 0.009999999776482582
+        , m43 = 0.0
+        , m14 = 0.0
+        , m24 = 0.0
+        , m34 = 0.0
+        , m44 = 1.0
+        }
+
+
+cameraTransform =
+    Mat4.fromRecord
+        { m11 = -0.7289686799049377
+        , m21 = 0.0
+        , m31 = -0.6845470666885376
+        , m41 = 0.0
+        , m12 = -0.4252049028873444
+        , m22 = 0.7836934328079224
+        , m32 = 0.4527972936630249
+        , m42 = 0.0
+        , m13 = 0.5364750623703003
+        , m23 = 0.6211478114128113
+        , m33 = -0.571287989616394
+        , m43 = 0.0
+        , m14 = 400.1130065917969
+        , m24 = 463.2640075683594
+        , m34 = -431.0780334472656
+        , m44 = 1.0
+        }
+
+
+perspectiveMatrix =
+    Mat4.makePerspective 0.6605925559997559 1.5 1.0 10000.0
+
+
+viewTransform =
+    Mat4.makeLookAt (vec3 0 0 -1000) (vec3 0 0 0) (vec3 0 1 0)
+
+
 uniforms : Texture -> Mat4.Mat4 -> Mat4.Mat4 -> Uniforms
 uniforms texture worldTransform viewPerspectiveMatrix =
     { transform =
-        List.foldr
-            Mat4.mul
-            Mat4.identity
-            [ viewPerspectiveMatrix
+        mulMatrices
+            [ perspectiveMatrix
 
-            --Mat4.makePerspective 160 (canvas.width / canvas.height) 1 -1
-            --, Mat4.makeLookAt (vec3 0 0 500) (vec3 0 0 0) (vec3 0 1 0)
+            --, cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
+            , viewTransform
             , worldTransform
+
+            --viewPerspectiveMatrix
+            --Mat4.makePerspective 0.66 (canvas.width / canvas.height) 1 10000
+            --, Mat4.makeLookAt (vec3 0 0 -500) (vec3 0 0 0) (vec3 0 1 0)
+            --, worldTransform
             ]
     , texture = texture
     }
@@ -118,10 +184,6 @@ getCameraAndViewPerspectiveMatrix cameras =
                 Mat4.inverse transform
                     |> Maybe.map
                         (\viewMatrix ->
-                            let
-                                _ =
-                                    Debug.log "inverted" viewMatrix
-                            in
                             Mat4.mul
                                 (Mat4.makePerspective yfov aspectRatio znear (zfar |> Maybe.withDefault -1000))
                                 viewMatrix
@@ -129,39 +191,92 @@ getCameraAndViewPerspectiveMatrix cameras =
             )
 
 
-viewCanvas : Model -> Html Msg
-viewCanvas model =
-    case model.texture of
-        Just texture ->
-            case getCameraAndViewPerspectiveMatrix model.cameras of
-                Just viewPerspectiveMatrix ->
-                    WebGL.toHtml
-                        [ width canvas.width
-                        , height canvas.height
-                        , style "border" "1px dashed gray"
-                        ]
-                        (List.map
-                            (\( transform, mesh ) ->
-                                WebGL.entity vertexShader
-                                    fragmentShader
-                                    mesh
-                                    (uniforms texture transform viewPerspectiveMatrix)
-                            )
-                            model.meshes
-                        )
+cameraEntity =
+    let
+        vShader =
+            [glsl|
+                attribute vec3 pos;
+                uniform mat4 transform;
 
-                Nothing ->
-                    div [] [ text "Could not read camera ..." ]
+                void main () {
+                  gl_Position = transform * vec4(pos, 1.0);
+                }
+              |]
+
+        fShader =
+            [glsl|
+                precision mediump float;
+
+                void main () {
+                  gl_FragColor =  vec4(0, 0, 0, 1);
+                }
+              |]
+    in
+    WebGL.entity vShader
+        fShader
+        (WebGL.lines
+            [ ( { pos = vec3 0 0 5 }, { pos = vec3 1 1 -5 } )
+            , ( { pos = vec3 0 0 5 }, { pos = vec3 1 -1 -5 } )
+            , ( { pos = vec3 0 0 5 }, { pos = vec3 -1 1 -5 } )
+            , ( { pos = vec3 0 0 5 }, { pos = vec3 -1 -1 -5 } )
+            , ( { pos = vec3 1 1 -5 }, { pos = vec3 1 -1 -5 } )
+            , ( { pos = vec3 1 1 -5 }, { pos = vec3 -1 1 -5 } )
+            , ( { pos = vec3 -1 -1 -5 }, { pos = vec3 1 -1 -5 } )
+            , ( { pos = vec3 -1 -1 -5 }, { pos = vec3 -1 1 -5 } )
+            ]
+        )
+        { transform =
+            mulMatrices
+                [ perspectiveMatrix
+                , viewTransform
+
+                --, Mat4.mul groupMatrix cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
+                , Mat4.mul groupMatrix cameraTransform
+                , Mat4.makeScale (vec3 20 20 20)
+                ]
+        }
+
+
+viewCanvas :
+    Texture.Texture
+    -> List ( Mat4, GLTF.Camera )
+    -> List ( Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
+    -> Html Msg
+viewCanvas texture cameras meshes =
+    case getCameraAndViewPerspectiveMatrix cameras of
+        Just viewPerspectiveMatrix ->
+            WebGL.toHtml
+                [ width canvas.width
+                , height canvas.height
+                , style "border" "1px dashed gray"
+                ]
+            <|
+                List.concat
+                    [ List.map
+                        (\( transform, mesh ) ->
+                            WebGL.entity vertexShader
+                                fragmentShader
+                                mesh
+                                (uniforms texture transform viewPerspectiveMatrix)
+                        )
+                        meshes
+                    , List.singleton cameraEntity
+                    ]
 
         Nothing ->
-            div [] [ text "Waiting for texture ..." ]
+            div [] [ text "Could not read camera ..." ]
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ div [] [ text "GLTF what the \u{1F986}" ]
-        , viewCanvas model
+        [ div [] [ text "GLTF! What the \u{1F986}!" ]
+        , case model.texture of
+            Just texture ->
+                viewCanvas texture model.cameras model.meshes
+
+            Nothing ->
+                div [] [ text "Waiting for texture ..." ]
         ]
 
 
