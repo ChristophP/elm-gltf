@@ -166,6 +166,8 @@ groupMatrix =
 
 perspectiveMatrix : GLTF.Camera -> Mat4
 perspectiveMatrix (GLTF.Perspective { yfov, aspectRatio, znear, zfar }) =
+    -- TODO: I have no idea why, the groupMatrix needs to be multiplied here but
+    -- it works when we do
     Mat4.mul groupMatrix <|
         Mat4.makePerspective
             yfov
@@ -231,11 +233,6 @@ uniforms texture worldTransform camera currentViewMatrix =
             [ perspectiveMatrix camera
             , currentViewMatrix
             , worldTransform
-
-            --viewPerspectiveMatrix
-            --Mat4.makePerspective 0.66 (canvas.width / canvas.height) 1 10000
-            --, Mat4.makeLookAt (vec3 0 0 -500) (vec3 0 0 0) (vec3 0 1 0)
-            --, worldTransform
             ]
     , texture = texture
     }
