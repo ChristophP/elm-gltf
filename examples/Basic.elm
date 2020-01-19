@@ -2,9 +2,9 @@ module Basic exposing (main)
 
 import Browser
 import GLTF
-import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (height, style, width)
-import Html.Events exposing (onClick)
+import Html exposing (Html, button, div, option, select, text)
+import Html.Attributes exposing (height, selected, style, value, width)
+import Html.Events exposing (onClick, onInput)
 import Json.Decode as JD
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 exposing (Vec2, vec2)
@@ -12,14 +12,16 @@ import Math.Vector3 exposing (Vec3, vec3)
 import Mesh
 import Scene
 import Task
+import Util exposing (listGetAt)
 import WebGL
 import WebGL.Texture as Texture exposing (Texture)
 
 
 type alias Model =
-    { meshes : List ( Mat4.Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
+    { meshes : List ( Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
     , cameras : List ( Mat4, Scene.Camera )
     , texture : Maybe Texture
+    , currentViewMatrix : Mat4
     }
 
 
@@ -59,6 +61,7 @@ init _ =
             ( { meshes = meshes
               , cameras = cameras
               , texture = Nothing
+              , currentViewMatrix = viewTransform
               }
             , Task.attempt GotTexture <|
                 -- TODO make this dynamic instead of hardcoded
@@ -78,6 +81,7 @@ init _ =
 
 type Msg
     = GotTexture (Result Texture.Error Texture)
+    | CameraChanged String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -88,6 +92,16 @@ update msg model =
 
         GotTexture (Err error) ->
             ( model, Cmd.none )
+
+        CameraChanged value ->
+            let
+                matrix =
+                    String.toInt value
+                        |> Maybe.andThen (\index -> listGetAt index model.cameras)
+                        |> Maybe.andThen (Tuple.first >> Mat4.inverse)
+                        |> Maybe.withDefault viewTransform
+            in
+            ( { model | currentViewMatrix = matrix }, Cmd.none )
 
 
 type alias Attributes =
@@ -157,14 +171,14 @@ viewTransform =
     Mat4.makeLookAt (vec3 0 0 -1000) (vec3 0 0 0) (vec3 0 1 0)
 
 
-uniforms : Texture -> Mat4.Mat4 -> Mat4.Mat4 -> Uniforms
-uniforms texture worldTransform viewPerspectiveMatrix =
+uniforms : Texture -> Mat4.Mat4 -> Mat4.Mat4 -> Mat4.Mat4 -> Uniforms
+uniforms texture worldTransform viewPerspectiveMatrix currentViewMatrix =
     { transform =
         mulMatrices
             [ perspectiveMatrix
 
             --, cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
-            , viewTransform
+            , currentViewMatrix
             , worldTransform
 
             --viewPerspectiveMatrix
@@ -191,7 +205,8 @@ getCameraAndViewPerspectiveMatrix cameras =
             )
 
 
-cameraEntity =
+cameraEntity : Mat4 -> WebGL.Entity
+cameraEntity currentViewMatrix =
     let
         vShader =
             [glsl|
@@ -215,10 +230,10 @@ cameraEntity =
     WebGL.entity vShader
         fShader
         (WebGL.lines
-            [ ( { pos = vec3 0 0 5 }, { pos = vec3 1 1 -5 } )
-            , ( { pos = vec3 0 0 5 }, { pos = vec3 1 -1 -5 } )
-            , ( { pos = vec3 0 0 5 }, { pos = vec3 -1 1 -5 } )
-            , ( { pos = vec3 0 0 5 }, { pos = vec3 -1 -1 -5 } )
+            [ ( { pos = vec3 0 0 0 }, { pos = vec3 1 1 -5 } )
+            , ( { pos = vec3 0 0 0 }, { pos = vec3 1 -1 -5 } )
+            , ( { pos = vec3 0 0 0 }, { pos = vec3 -1 1 -5 } )
+            , ( { pos = vec3 0 0 0 }, { pos = vec3 -1 -1 -5 } )
             , ( { pos = vec3 1 1 -5 }, { pos = vec3 1 -1 -5 } )
             , ( { pos = vec3 1 1 -5 }, { pos = vec3 -1 1 -5 } )
             , ( { pos = vec3 -1 -1 -5 }, { pos = vec3 1 -1 -5 } )
@@ -228,7 +243,9 @@ cameraEntity =
         { transform =
             mulMatrices
                 [ perspectiveMatrix
-                , viewTransform
+
+                --, viewTransform
+                , currentViewMatrix
 
                 --, Mat4.mul groupMatrix cameraTransform |> Mat4.inverse |> Maybe.withDefault Mat4.identity
                 , Mat4.mul groupMatrix cameraTransform
@@ -241,27 +258,45 @@ viewCanvas :
     Texture.Texture
     -> List ( Mat4, GLTF.Camera )
     -> List ( Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
+    -> Mat4
     -> Html Msg
-viewCanvas texture cameras meshes =
+viewCanvas texture cameras meshes currentViewMatrix =
     case getCameraAndViewPerspectiveMatrix cameras of
         Just viewPerspectiveMatrix ->
-            WebGL.toHtml
-                [ width canvas.width
-                , height canvas.height
-                , style "border" "1px dashed gray"
-                ]
-            <|
-                List.concat
-                    [ List.map
-                        (\( transform, mesh ) ->
-                            WebGL.entity vertexShader
-                                fragmentShader
-                                mesh
-                                (uniforms texture transform viewPerspectiveMatrix)
-                        )
-                        meshes
-                    , List.singleton cameraEntity
+            div [ style "display" "flex" ]
+                [ WebGL.toHtml
+                    [ width canvas.width
+                    , height canvas.height
+                    , style "border" "1px dashed gray"
                     ]
+                  <|
+                    List.concat
+                        [ List.map
+                            (\( transform, mesh ) ->
+                                WebGL.entity vertexShader
+                                    fragmentShader
+                                    mesh
+                                    (uniforms
+                                        texture
+                                        transform
+                                        viewPerspectiveMatrix
+                                        currentViewMatrix
+                                    )
+                            )
+                            meshes
+                        , List.singleton (cameraEntity currentViewMatrix)
+                        ]
+                , div []
+                    [ select [ onInput CameraChanged ] <|
+                        option [ value "default" ] [ text "default" ]
+                            :: List.indexedMap
+                                (\index _ ->
+                                    option [ value (String.fromInt index) ]
+                                        [ text ("camera" ++ String.fromInt index) ]
+                                )
+                                cameras
+                    ]
+                ]
 
         Nothing ->
             div [] [ text "Could not read camera ..." ]
@@ -273,7 +308,10 @@ view model =
         [ div [] [ text "GLTF! What the \u{1F986}!" ]
         , case model.texture of
             Just texture ->
-                viewCanvas texture model.cameras model.meshes
+                viewCanvas texture
+                    model.cameras
+                    model.meshes
+                    model.currentViewMatrix
 
             Nothing ->
                 div [] [ text "Waiting for texture ..." ]
