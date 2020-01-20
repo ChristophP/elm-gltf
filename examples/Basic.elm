@@ -96,10 +96,13 @@ update msg model =
         CameraChanged value ->
             let
                 matrix =
-                    String.toInt value
-                        |> Maybe.andThen (\index -> listGetAt index model.cameras)
-                        |> Maybe.andThen (Tuple.first >> Mat4.inverse)
-                        |> Maybe.withDefault defaultViewTransform
+                    Debug.log "currentViewMatrix"
+                        (String.toInt
+                            value
+                            |> Maybe.andThen (\index -> listGetAt index model.cameras)
+                            |> Maybe.andThen (Tuple.first >> Mat4.inverse)
+                            |> Maybe.withDefault defaultViewTransform
+                        )
             in
             ( { model | currentViewMatrix = matrix }, Cmd.none )
 
@@ -143,7 +146,7 @@ groupMatrix =
 
 
 
---cameraTransform =
+--cameraLocalTransform =
 --Mat4.fromRecord
 --{ m11 = -0.7289686799049377
 --, m21 = 0.0
@@ -166,14 +169,12 @@ groupMatrix =
 
 perspectiveMatrix : GLTF.Camera -> Mat4
 perspectiveMatrix (GLTF.Perspective { yfov, aspectRatio, znear, zfar }) =
-    -- TODO: I have no idea why, the groupMatrix needs to be multiplied here but
-    -- it works when we do
-    Mat4.mul groupMatrix <|
-        Mat4.makePerspective
-            yfov
-            aspectRatio
-            znear
-            (zfar |> Maybe.withDefault 1000)
+    Mat4.makePerspective
+        -- turn radians into degrees
+        (yfov / pi * 180)
+        aspectRatio
+        znear
+        (zfar |> Maybe.withDefault 10000)
 
 
 defaultViewTransform : Mat4
@@ -182,7 +183,7 @@ defaultViewTransform =
 
 
 cameraEntity : Mat4 -> GLTF.Camera -> Mat4 -> WebGL.Entity
-cameraEntity cameraTransform camera currentViewMatrix =
+cameraEntity worldTransform camera currentViewMatrix =
     let
         vShader =
             [glsl|
@@ -220,17 +221,20 @@ cameraEntity cameraTransform camera currentViewMatrix =
             mulMatrices
                 [ perspectiveMatrix camera
                 , currentViewMatrix
-                , cameraTransform
+                , worldTransform
                 , Mat4.makeScale (vec3 20 20 20)
                 ]
         }
 
 
-uniforms : Texture -> Mat4.Mat4 -> GLTF.Camera -> Mat4.Mat4 -> Uniforms
-uniforms texture worldTransform camera currentViewMatrix =
+uniforms : Texture -> Mat4.Mat4 -> Mat4.Mat4 -> GLTF.Camera -> Uniforms
+uniforms texture worldTransform currentViewMatrix camera =
     { transform =
         mulMatrices
-            [ perspectiveMatrix camera
+            [ -- TODO: I have no idea why, the groupMatrix needs to be multiplied here but
+              -- it works when we do
+              --groupMatrix,
+              perspectiveMatrix camera
             , currentViewMatrix
             , worldTransform
             ]
@@ -263,8 +267,8 @@ viewCanvas texture cameras meshes currentViewMatrix =
                                     (uniforms
                                         texture
                                         transform
-                                        camera
                                         currentViewMatrix
+                                        camera
                                     )
                             )
                             meshes
