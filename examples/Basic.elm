@@ -1,10 +1,11 @@
 module Basic exposing (main)
 
 import Browser
+import Browser.Events
 import GLTF
-import Html exposing (Html, button, div, option, select, text)
-import Html.Attributes exposing (height, selected, style, value, width)
-import Html.Events exposing (onClick, onInput)
+import Html exposing (Html, br, button, div, input, label, option, select, text)
+import Html.Attributes exposing (height, selected, style, type_, value, width)
+import Html.Events exposing (onCheck, onClick, onInput)
 import Json.Decode as JD
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector2 exposing (Vec2, vec2)
@@ -21,7 +22,9 @@ type alias Model =
     { meshes : List ( Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
     , cameras : List ( Mat4, Scene.Camera )
     , texture : Maybe Texture
-    , currentViewMatrix : Mat4
+    , currentCamera : ( Mat4, GLTF.Camera )
+    , elapsedTime : Float
+    , rotationActive : Bool
     }
 
 
@@ -61,7 +64,9 @@ init _ =
             ( { meshes = meshes
               , cameras = cameras
               , texture = Nothing
-              , currentViewMatrix = defaultViewTransform
+              , currentCamera = defaultCamera
+              , elapsedTime = 0
+              , rotationActive = False
               }
             , Task.attempt GotTexture <|
                 -- TODO make this dynamic instead of hardcoded
@@ -82,6 +87,8 @@ init _ =
 type Msg
     = GotTexture (Result Texture.Error Texture)
     | CameraChanged String
+    | Tick Float
+    | RotateChange Bool
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -95,16 +102,20 @@ update msg model =
 
         CameraChanged value ->
             let
-                matrix =
-                    Debug.log "currentViewMatrix"
-                        (String.toInt
-                            value
-                            |> Maybe.andThen (\index -> listGetAt index model.cameras)
-                            |> Maybe.andThen (Tuple.first >> Mat4.inverse)
-                            |> Maybe.withDefault defaultViewTransform
-                        )
+                camera =
+                    String.toInt
+                        value
+                        |> Maybe.andThen (\index -> listGetAt index model.cameras)
+                        |> Maybe.withDefault defaultCamera
+                        |> Debug.log "default camera"
             in
-            ( { model | currentViewMatrix = matrix }, Cmd.none )
+            ( { model | currentCamera = camera }, Cmd.none )
+
+        Tick millis ->
+            ( { model | elapsedTime = model.elapsedTime + millis }, Cmd.none )
+
+        RotateChange active ->
+            ( { model | rotationActive = active }, Cmd.none )
 
 
 type alias Attributes =
@@ -177,13 +188,28 @@ perspectiveMatrix (GLTF.Perspective { yfov, aspectRatio, znear, zfar }) =
         (zfar |> Maybe.withDefault 10000)
 
 
-defaultViewTransform : Mat4
-defaultViewTransform =
-    Mat4.makeLookAt (vec3 0 0 10) (vec3 0 0 0) (vec3 0 1 0)
+rotate : Float -> Mat4 -> Mat4
+rotate elapsedTime matrix =
+    let
+        turnsPerSecond =
+            0.2
+
+        rotation =
+            Mat4.makeRotate (turns (turnsPerSecond * elapsedTime / 1000))
+                (vec3 0 1 0)
+    in
+    Mat4.mul rotation matrix
 
 
-cameraEntity : Mat4 -> GLTF.Camera -> Mat4 -> WebGL.Entity
-cameraEntity worldTransform camera currentViewMatrix =
+defaultCamera : ( Mat4, GLTF.Camera )
+defaultCamera =
+    ( Mat4.makeTranslate (vec3 0 0 10)
+    , GLTF.Perspective { yfov = 0.66, aspectRatio = 1.5, znear = 1, zfar = Just 10000 }
+    )
+
+
+cameraEntity : Mat4 -> Mat4 -> GLTF.Camera -> WebGL.Entity
+cameraEntity worldTransform cameraTransform camera =
     let
         vShader =
             [glsl|
@@ -220,22 +246,27 @@ cameraEntity worldTransform camera currentViewMatrix =
         { transform =
             mulMatrices
                 [ perspectiveMatrix camera
-                , currentViewMatrix
+                , viewMatrix cameraTransform
                 , worldTransform
                 , Mat4.makeScale (vec3 20 20 20)
                 ]
         }
 
 
-uniforms : Texture -> Mat4.Mat4 -> Mat4.Mat4 -> GLTF.Camera -> Uniforms
-uniforms texture worldTransform currentViewMatrix camera =
+{-| This is a bit unsafe, because it won't handle the case properly
+when a matrix is not inverible
+-}
+viewMatrix : Mat4 -> Mat4
+viewMatrix cameraMatrix =
+    Mat4.inverse cameraMatrix |> Maybe.withDefault Mat4.identity
+
+
+uniforms : Texture -> Mat4.Mat4 -> Mat4 -> GLTF.Camera -> Uniforms
+uniforms texture worldTransform cameraTransform camera =
     { transform =
         mulMatrices
-            [ -- TODO: I have no idea why, the groupMatrix needs to be multiplied here but
-              -- it works when we do
-              --groupMatrix,
-              perspectiveMatrix camera
-            , currentViewMatrix
+            [ perspectiveMatrix camera
+            , viewMatrix cameraTransform
             , worldTransform
             ]
     , texture = texture
@@ -243,51 +274,56 @@ uniforms texture worldTransform currentViewMatrix camera =
 
 
 viewCanvas :
-    Texture.Texture
+    Float
+    -> Texture.Texture
     -> List ( Mat4, GLTF.Camera )
     -> List ( Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
-    -> Mat4
+    -> ( Mat4, GLTF.Camera )
     -> Html Msg
-viewCanvas texture cameras meshes currentViewMatrix =
-    case List.head cameras of
-        Just ( cameraMatrix, camera ) ->
-            div [ style "display" "flex" ]
-                [ WebGL.toHtml
-                    [ width canvas.width
-                    , height canvas.height
-                    , style "border" "1px dashed gray"
-                    ]
-                  <|
-                    List.concat
-                        [ List.map
-                            (\( transform, mesh ) ->
-                                WebGL.entity vertexShader
-                                    fragmentShader
-                                    mesh
-                                    (uniforms
-                                        texture
-                                        transform
-                                        currentViewMatrix
-                                        camera
-                                    )
+viewCanvas elapsedTime texture cameras meshes ( cameraMatrix, camera ) =
+    div [ style "display" "flex" ]
+        [ WebGL.toHtml
+            [ width canvas.width
+            , height canvas.height
+            , style "border" "1px dashed gray"
+            ]
+          <|
+            List.concat
+                [ List.map
+                    (\( transform, mesh ) ->
+                        WebGL.entity vertexShader
+                            fragmentShader
+                            mesh
+                            (uniforms
+                                texture
+                                (rotate elapsedTime transform)
+                                cameraMatrix
+                                camera
                             )
-                            meshes
-                        , List.singleton (cameraEntity cameraMatrix camera currentViewMatrix)
-                        ]
-                , div []
-                    [ select [ onInput CameraChanged ] <|
-                        option [ value "default" ] [ text "default" ]
-                            :: List.indexedMap
-                                (\index _ ->
-                                    option [ value (String.fromInt index) ]
-                                        [ text ("camera" ++ String.fromInt index) ]
-                                )
-                                cameras
-                    ]
+                    )
+                    meshes
+                , List.map
+                    (\( matrix, _ ) ->
+                        cameraEntity matrix cameraMatrix camera
+                    )
+                    cameras
                 ]
-
-        Nothing ->
-            div [] [ text "Could not read camera ..." ]
+        , div []
+            [ select [ onInput CameraChanged ] <|
+                option [ value "default" ] [ text "default" ]
+                    :: List.indexedMap
+                        (\index _ ->
+                            option [ value (String.fromInt index) ]
+                                [ text ("camera" ++ String.fromInt index) ]
+                        )
+                        cameras
+            , br [] []
+            , label []
+                [ text "Rotate"
+                , input [ type_ "checkbox", onCheck RotateChange ] []
+                ]
+            ]
+        ]
 
 
 view : Model -> Html Msg
@@ -296,10 +332,12 @@ view model =
         [ div [] [ text "GLTF! What the \u{1F986}!" ]
         , case model.texture of
             Just texture ->
-                viewCanvas texture
+                viewCanvas
+                    model.elapsedTime
+                    texture
                     model.cameras
                     model.meshes
-                    model.currentViewMatrix
+                    model.currentCamera
 
             Nothing ->
                 div [] [ text "Waiting for texture ..." ]
@@ -335,13 +373,22 @@ fragmentShader =
   |]
 
 
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    if model.rotationActive then
+        Browser.Events.onAnimationFrameDelta Tick
+
+    else
+        Sub.none
+
+
 main : Program () Model Msg
 main =
     Browser.element
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
 
 
