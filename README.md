@@ -36,7 +36,7 @@ support in the foreseeable future.
 ### Formats (Where are the assets?)
 - [x] Embedded glTF(all assets like buffers and images are embedded as base64, single file)
 - [ ] Hyperlinked glTF(assets are referenced via URL, multiple files)
-- [ ] Binary GLB (everything is bundled into a single binary container file called)
+- [ ] Binary GLB (everything is bundled into a single binary container file)
 - [ ] possibly extensions like DRACO
 
 ## Current Results
