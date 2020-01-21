@@ -16,9 +16,9 @@ npx elm reactor # compile elm code and spin up a dev server
 
 Idea: Create 3 levels
 
-Low-Level: Raw GLTF (normalized, looks like GLTF, Buffers unparsed)
-Mid-Level: Tree of things(denormalized, buffers parsed)
-High-Level: Just a list of Drawables, and a list of cameras.
+1. Low-Level: Raw GLTF (normalized, looks like GLTF, Buffers unparsed)
+2. Mid-Level: Tree of things(denormalized, buffers parsed)
+3. High-Level: Just a list of Drawables, and a list of cameras.
 
 Things that can get expensive when done a lot:
 - parsing buffers
