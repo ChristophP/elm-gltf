@@ -30,10 +30,10 @@ support in the foreseeable future.
 - [ ] Extracting TRS properties (separate rotation, scale and translation)
 - [ ] Extracting meshes with different vertex attributes (right now only position, normal, texCoords)
 ### Formats (Where are the assets?)
-- [x] Embedded (all assets like buffers and images are embedded as base64, single file)
-- [ ] Hyperlinked (assets are referenced via URL, multiple files)
-- [ ] Binary GLB (everything is bundled into a single binary container file called GLB)
-- [ ] possibly extension like DRACO
+- [x] Embedded glTF(all assets like buffers and images are embedded as base64, single file)
+- [ ] Hyperlinked glTF(assets are referenced via URL, multiple files)
+- [ ] Binary GLB (everything is bundled into a single binary container file called)
+- [ ] possibly extensions like DRACO
 
 ## Current Results
 
