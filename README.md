@@ -14,7 +14,7 @@ npx elm reactor # compile elm code and spin up a dev server
 
 ## Features
 
-The glTF spec si quite large, especially when also considering extensions.
+The glTF spec is quite large, especially when also considering extensions.
 The following gives a quick overview of feature that `elm-gltf` aims to
 support in the foreseeable future.
 
