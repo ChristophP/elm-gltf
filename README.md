@@ -4,6 +4,14 @@ A package for loading and working with 3D models in the [GLTF](https://github.co
 
 Link to GLTF cheat sheet [here](https://www.khronos.org/files/gltf20-reference-guide.pdf).
 
+## Run the example
+
+```
+npm install
+cd examples
+npx elm reactor
+```
+
 ## Current Results
 
 Idea: Create 3 levels
