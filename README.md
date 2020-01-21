@@ -12,6 +12,29 @@ cd examples
 npx elm reactor # compile elm code and spin up a dev server
 ```
 
+## Features
+
+The glTF spec si quite large, especially when also considering extensions.
+The following gives a quick overview of feature that `elm-gltf` aims to
+support in the foreseeable future.
+
+### Data extraction
+- [x] Extracting scenes
+- [x] Extracting nodes
+- [x] Extracting buffers
+- [x] Extracting buffer views
+- [x] Extracting accessors
+- [x] Extracting meshes
+- [ ] Extracting textures
+- [ ] Extracting texture properties
+- [ ] Extracting TRS properties (separate rotation, scale and translation)
+- [ ] Extracting meshes with different vertex attributes (right now only position, normal, texCoords)
+### Formats (Where are the assets?)
+- [x] Embedded (all assets like buffers and images are embedded as base64, single file)
+- [ ] Hyperlinked (assets are referenced via URL, multiple files)
+- [ ] Binary GLB (everything is bundled into a single binary container file called GLB)
+- [ ] possibly extension like DRACO
+
 ## Current Results
 
 Idea: Create 3 levels
