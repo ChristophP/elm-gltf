@@ -6,7 +6,7 @@ Link to GLTF cheat sheet [here](https://www.khronos.org/files/gltf20-reference-g
 
 ## Run the example
 
-```
+```sh
 npm install
 cd examples
 npx elm reactor # compile elm code and spin up a dev server
