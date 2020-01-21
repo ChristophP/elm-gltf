@@ -29,6 +29,10 @@ support in the foreseeable future.
 - [ ] Extracting texture properties
 - [ ] Extracting TRS properties (separate rotation, scale and translation)
 - [ ] Extracting meshes with different vertex attributes (right now only position, normal, texCoords)
+- [ ] Extracting different materials (PBR, Lambertian, etc)
+- [ ] Extracting different mesh types (lines, etc)
+- [ ] Extracting orthographic and infinite perspective projection
+
 ### Formats (Where are the assets?)
 - [x] Embedded glTF(all assets like buffers and images are embedded as base64, single file)
 - [ ] Hyperlinked glTF(assets are referenced via URL, multiple files)
