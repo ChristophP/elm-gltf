@@ -23,6 +23,7 @@ type alias Mesh =
     { attributes : Attributes
     , indices : Maybe Int
     , mode : MeshMode
+    , material : Int
     }
 
 

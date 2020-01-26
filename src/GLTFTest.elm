@@ -246,7 +246,7 @@ gltf : GLTF.GLTF
 gltf =
     case JD.decodeString GLTF.gltfEmbeddedDecoder duckEmbedded of
         Ok val ->
-            val
+            Debug.log "DuckGLTF" val
 
         Err err ->
             Debug.todo (Debug.toString err)

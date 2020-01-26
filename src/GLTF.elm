@@ -20,6 +20,8 @@ type GLTF
         , cameras : List Camera
         , nodes : List Node
         , meshes : List Mesh
+
+        --, materials : List Int
         , accessors : List Accessor
         , bufferViews : List BufferView
         , buffers : List Buffer
@@ -237,10 +239,11 @@ meshesDecoder =
         (JD.list
             (JD.field "primitives"
                 (JD.list
-                    (JD.map3 Mesh
+                    (JD.map4 Mesh
                         (JD.field "attributes" attributesDecoder)
                         (JD.maybe (JD.field "indices" JD.int))
                         (JD.field "mode" meshModeDecoder)
+                        (JD.field "material" JD.int)
                     )
                 )
             )
@@ -411,6 +414,8 @@ gltfEmbeddedDecoder =
                 , cameras = cameras
                 , nodes = nodes
                 , meshes = meshes
+
+                --, materials = materials
                 , accessors = accessors
                 , bufferViews = bufferViews
                 , buffers = buffers
