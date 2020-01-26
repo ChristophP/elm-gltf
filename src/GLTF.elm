@@ -7,10 +7,12 @@ import Json.Decode as JD
 import Json.Decode.Pipeline as JDP
 import Math.Matrix4 as Mat4
 import Math.Vector3 as Vec3 exposing (vec3)
+import Math.Vector4 as Vec4 exposing (vec4)
 import Mesh exposing (Attributes, Mesh)
 import Set
 import Util exposing (defaultDecoder, listGetAt, maybeSequence)
 import WebGL
+import WebGL.Texture exposing (Texture)
 
 
 type GLTF
@@ -41,29 +43,33 @@ type Camera
 --| Orthographic { xmag : Float, ymag : Float, zfar : Float, znear : Float }
 
 
-type alias Transformation =
-    { ix : Float
-    , iy : Float
-    , iz : Float
-    , jx : Float
-    , jy : Float
-    , jz : Float
-    , kx : Float
-    , ky : Float
-    , kz : Float
-    , px : Float
-    , py : Float
-    , pz : Float
-    , scale : Float
-
-    --, isRightHanded : Bool
-    }
-
-
 type Node
     = MeshNode Mat4.Mat4 Int
     | CameraNode Mat4.Mat4 Int
     | Group Mat4.Mat4 (List Int)
+
+
+type alias Material =
+    { pbrMetallicRoughness : PBRMetallicRoughness
+    , emissiveFactor : Vec3.Vec3
+    , alphaMode : AlphaMode
+    , doubleSided : Bool
+    }
+
+
+type alias PBRMetallicRoughness =
+    { baseColorFactor : Vec4.Vec4
+    , baseColorTexture : Maybe Texture
+    , metallicFactor : Float
+    , roughnessFactor : Float
+    , metallicRoughnessTexture : Maybe Texture
+    }
+
+
+type AlphaMode
+    = Opaque
+    | Mask Float
+    | Blend
 
 
 
@@ -346,6 +352,51 @@ structureTypeDecoder =
                         JD.fail
                             ("Found unknown numComponet constant: Got " ++ type_)
             )
+
+
+
+-- Materials
+--{ pbrMetallicRoughness : PBRMetallicRoughness
+--, emissiveFactor : Vec3.Vec3
+--, alphaMode : AlphaMode
+--, doubleSided : Bool
+--}
+
+
+alphaModeDecoder : JD.Decoder AlphaMode
+alphaModeDecoder =
+    JD.string
+        |> JD.andThen
+            (\str ->
+                case str of
+                    "OPAQUE" ->
+                        JD.succeed Opaque
+
+                    "MASK" ->
+                        JD.field "alphaCutoff" JD.float
+                            |> JD.map Mask
+
+                    "BLEND" ->
+                        JD.succeed Blend
+
+                    _ ->
+                        JD.fail
+                            ("Need to see OPAQUE, MASK or BLEND"
+                                ++ "but got '"
+                                ++ str
+                                ++ "'"
+                            )
+            )
+
+
+materialsDecoder : JD.Decoder (List Material)
+materialsDecoder =
+    JD.list <|
+        JD.map4 Material
+            (JD.field "pbrMetallicRoughness" (JD.fail "TODO"))
+            (defaultDecoder (vec3 0 0 0) (JD.field "emissiveFactor" vec3Decoder))
+            (defaultDecoder Opaque alphaModeDecoder)
+            (defaultDecoder False JD.bool)
 
 
 
