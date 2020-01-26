@@ -6,6 +6,7 @@ import Bytes.Extra as BE
 import Json.Decode as JD
 import Json.Decode.Pipeline as JDP
 import Math.Matrix4 as Mat4
+import Math.Vector3 as Vec3 exposing (vec3)
 import Mesh exposing (Attributes, Mesh)
 import Set
 import Util exposing (defaultDecoder, listGetAt, maybeSequence)
@@ -95,7 +96,64 @@ getMeshes (GLTF data) =
 
 
 
--- decoders
+-- Decoders
+
+
+matrixDecoder : JD.Decoder Mat4.Mat4
+matrixDecoder =
+    JD.list JD.float
+        |> JD.andThen
+            (\list ->
+                case list of
+                    [ m11, m21, m31, m41, m12, m22, m32, m42, m13, m23, m33, m43, m14, m24, m34, m44 ] ->
+                        JD.succeed <|
+                            Mat4.fromRecord
+                                { m11 = m11
+                                , m21 = m21
+                                , m31 = m31
+                                , m41 = m41
+                                , m12 = m12
+                                , m22 = m22
+                                , m32 = m32
+                                , m42 = m42
+                                , m13 = m13
+                                , m23 = m23
+                                , m33 = m33
+                                , m43 = m43
+                                , m14 = m14
+                                , m24 = m24
+                                , m34 = m34
+                                , m44 = m44
+                                }
+
+                    _ ->
+                        JD.fail "Matrix did not have the correct number of 16 entries"
+            )
+
+
+minMaxDecoder : JD.Decoder ( List Float, List Float )
+minMaxDecoder =
+    JD.map2 Tuple.pair
+        (JD.field "min" (JD.list JD.float))
+        (JD.field "max" (JD.list JD.float))
+
+
+vec3Decoder : JD.Decoder Vec3.Vec3
+vec3Decoder =
+    JD.list JD.float
+        |> JD.andThen
+            (\list ->
+                case list of
+                    [ x, y, z ] ->
+                        JD.succeed (vec3 x y z)
+
+                    _ ->
+                        JD.fail "Could not read vector 3."
+            )
+
+
+
+-- Scene
 
 
 defaultSceneDecoder : JD.Decoder Int
@@ -112,6 +170,10 @@ scenesDecoder =
                 |> JD.map Scene
             )
         )
+
+
+
+-- Camera
 
 
 perspectiveDecoder : JD.Decoder Camera
@@ -159,36 +221,8 @@ camerasDecoder =
         )
 
 
-matrixDecoder : JD.Decoder Mat4.Mat4
-matrixDecoder =
-    JD.list JD.float
-        |> JD.andThen
-            (\list ->
-                case list of
-                    [ m11, m21, m31, m41, m12, m22, m32, m42, m13, m23, m33, m43, m14, m24, m34, m44 ] ->
-                        JD.succeed <|
-                            Mat4.fromRecord
-                                { m11 = m11
-                                , m21 = m21
-                                , m31 = m31
-                                , m41 = m41
-                                , m12 = m12
-                                , m22 = m22
-                                , m32 = m32
-                                , m42 = m42
-                                , m13 = m13
-                                , m23 = m23
-                                , m33 = m33
-                                , m43 = m43
-                                , m14 = m14
-                                , m24 = m24
-                                , m34 = m34
-                                , m44 = m44
-                                }
 
-                    _ ->
-                        JD.fail "Matrix did not have the correct number of 16 entries"
-            )
+-- Nodes
 
 
 nodesDecoder : JD.Decoder (List Node)
@@ -209,7 +243,7 @@ nodesDecoder =
 
 
 
---|> JD.map buildTreeFromRootNodes
+-- Mesh
 
 
 meshModeDecoder : JD.Decoder Mesh.MeshMode
@@ -314,11 +348,8 @@ structureTypeDecoder =
             )
 
 
-minMaxDecoder : JD.Decoder ( List Float, List Float )
-minMaxDecoder =
-    JD.map2 Tuple.pair
-        (JD.field "min" (JD.list JD.float))
-        (JD.field "max" (JD.list JD.float))
+
+-- Accessors
 
 
 accessorsDecoder : JD.Decoder (List Accessor)
