@@ -23,8 +23,7 @@ type GLTF
         , cameras : List Camera
         , nodes : List Node
         , meshes : List Mesh
-
-        --, materials : List Int
+        , materials : List Material
         , accessors : List Accessor
         , bufferViews : List BufferView
         , buffers : List Buffer
@@ -50,19 +49,18 @@ type Node
 
 
 type alias Material =
-    { pbrMetallicRoughness : PBRMetallicRoughness
+    { pbrMetallicRoughness : PBRMR
     , emissiveFactor : Vec3.Vec3
     , alphaMode : AlphaMode
     , doubleSided : Bool
     }
 
 
-type alias PBRMetallicRoughness =
+type alias PBRMR =
     { baseColorFactor : Vec4.Vec4
-    , baseColorTexture : Maybe Texture
+    , baseColorTexture : Int
     , metallicFactor : Float
     , roughnessFactor : Float
-    , metallicRoughnessTexture : Maybe Texture
     }
 
 
@@ -155,6 +153,20 @@ vec3Decoder =
 
                     _ ->
                         JD.fail "Could not read vector 3."
+            )
+
+
+vec4Decoder : JD.Decoder Vec4.Vec4
+vec4Decoder =
+    JD.list JD.float
+        |> JD.andThen
+            (\list ->
+                case list of
+                    [ x, y, z, w ] ->
+                        JD.succeed (vec4 x y z w)
+
+                    _ ->
+                        JD.fail "Could not read vector 4."
             )
 
 
@@ -356,11 +368,16 @@ structureTypeDecoder =
 
 
 -- Materials
---{ pbrMetallicRoughness : PBRMetallicRoughness
---, emissiveFactor : Vec3.Vec3
---, alphaMode : AlphaMode
---, doubleSided : Bool
---}
+
+
+pbrMRDecoder : JD.Decoder PBRMR
+pbrMRDecoder =
+    JD.map4
+        PBRMR
+        (defaultDecoder (vec4 1 1 1 1) (JD.field "baseColorFactor" vec4Decoder))
+        (JD.field "baseColorTexture" (JD.field "index" JD.int))
+        (defaultDecoder 1 (JD.field "metallicFactor" JD.float))
+        (defaultDecoder 1 (JD.field "roughnessFactor" JD.float))
 
 
 alphaModeDecoder : JD.Decoder AlphaMode
@@ -391,12 +408,15 @@ alphaModeDecoder =
 
 materialsDecoder : JD.Decoder (List Material)
 materialsDecoder =
-    JD.list <|
-        JD.map4 Material
-            (JD.field "pbrMetallicRoughness" (JD.fail "TODO"))
-            (defaultDecoder (vec3 0 0 0) (JD.field "emissiveFactor" vec3Decoder))
-            (defaultDecoder Opaque alphaModeDecoder)
-            (defaultDecoder False JD.bool)
+    JD.field "materials"
+        (JD.list <|
+            JD.map4 Material
+                --TODO add default for PBR object
+                (JD.field "pbrMetallicRoughness" pbrMRDecoder)
+                (defaultDecoder (vec3 0 0 0) (JD.field "emissiveFactor" vec3Decoder))
+                (defaultDecoder Opaque (JD.field "alphaMode" alphaModeDecoder))
+                (defaultDecoder False (JD.field "doubleSided" JD.bool))
+        )
 
 
 
@@ -488,7 +508,7 @@ buffersDecoder =
 gltfEmbeddedDecoder : JD.Decoder GLTF
 gltfEmbeddedDecoder =
     JD.succeed
-        (\version scene scenes cameras nodes meshes accessors bufferViews buffers ->
+        (\version scene scenes cameras nodes meshes materials accessors bufferViews buffers ->
             GLTF
                 { version = version
                 , defaultScene = scene
@@ -496,8 +516,7 @@ gltfEmbeddedDecoder =
                 , cameras = cameras
                 , nodes = nodes
                 , meshes = meshes
-
-                --, materials = materials
+                , materials = materials
                 , accessors = accessors
                 , bufferViews = bufferViews
                 , buffers = buffers
@@ -509,6 +528,7 @@ gltfEmbeddedDecoder =
         |> JDP.custom camerasDecoder
         |> JDP.custom nodesDecoder
         |> JDP.custom meshesDecoder
+        |> JDP.custom materialsDecoder
         |> JDP.custom accessorsDecoder
         |> JDP.custom bufferViewsDecoder
         |> JDP.custom buffersDecoder
