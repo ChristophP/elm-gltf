@@ -12,7 +12,6 @@ import Mesh exposing (Attributes, Mesh)
 import Set
 import Util exposing (defaultDecoder, listGetAt, maybeSequence)
 import WebGL
-import WebGL.Texture exposing (Texture)
 
 
 type GLTF
@@ -58,9 +57,21 @@ type alias Material =
 
 type alias PBRMR =
     { baseColorFactor : Vec4.Vec4
-    , baseColorTexture : Int
+    , baseColorTexture : TextureInfo
     , metallicFactor : Float
     , roughnessFactor : Float
+    }
+
+
+type alias TextureInfo =
+    { index : Int
+    , texCoord : Int
+    }
+
+
+type alias Texture =
+    { sampler : Int
+    , source : Int
     }
 
 
@@ -370,12 +381,19 @@ structureTypeDecoder =
 -- Materials
 
 
+textureInfoDecoder : JD.Decoder TextureInfo
+textureInfoDecoder =
+    JD.map2 TextureInfo
+        (JD.field "index" JD.int)
+        (defaultDecoder 0 (JD.field "texCoord" JD.int))
+
+
 pbrMRDecoder : JD.Decoder PBRMR
 pbrMRDecoder =
     JD.map4
         PBRMR
         (defaultDecoder (vec4 1 1 1 1) (JD.field "baseColorFactor" vec4Decoder))
-        (JD.field "baseColorTexture" (JD.field "index" JD.int))
+        (JD.field "baseColorTexture" textureInfoDecoder)
         (defaultDecoder 1 (JD.field "metallicFactor" JD.float))
         (defaultDecoder 1 (JD.field "roughnessFactor" JD.float))
 
