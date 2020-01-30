@@ -23,6 +23,9 @@ type GLTF
         , nodes : List Node
         , meshes : List Mesh
         , materials : List Material
+        , textures : List Texture
+        , images : List Image
+        , samplers : List Sampler
         , accessors : List Accessor
         , bufferViews : List BufferView
         , buffers : List Buffer
@@ -70,7 +73,7 @@ type alias TextureInfo =
 
 
 type alias Texture =
-    { sampler : Int
+    { sampler : Maybe Int
     , source : Int
     }
 
@@ -378,6 +381,21 @@ structureTypeDecoder =
 
 
 
+-- Textures
+
+
+texturesDecoder : JD.Decoder (List Texture)
+texturesDecoder =
+    JD.field "textures"
+        (JD.list
+            (JD.map2 Texture
+                (JD.maybe (JD.field "sampler" JD.int))
+                (JD.field "source" JD.int)
+            )
+        )
+
+
+
 -- Materials
 
 
@@ -435,6 +453,145 @@ materialsDecoder =
                 (defaultDecoder Opaque (JD.field "alphaMode" alphaModeDecoder))
                 (defaultDecoder False (JD.field "doubleSided" JD.bool))
         )
+
+
+
+-- Images
+
+
+type Image
+    = ImageUri String
+    | ImageBuffer String String
+
+
+imagesDecoder : JD.Decoder (List Image)
+imagesDecoder =
+    JD.field "images" (JD.list imageDecoder)
+
+
+imageDecoder : JD.Decoder Image
+imageDecoder =
+    JD.oneOf
+        [ JD.map ImageUri (JD.field "uri" JD.string)
+        , JD.map2
+            ImageBuffer
+            (JD.field "mimeType" JD.string)
+            (JD.field "bufferView" JD.string)
+        ]
+
+
+
+-- Samplers
+
+
+type alias Sampler =
+    { magFilter : ResizeBigger
+    , minFilter : ResizeSmaller
+    , wrapS : Wrap
+    , wrapT : Wrap
+    }
+
+
+samplerDec : a -> String -> (Int -> Maybe a) -> JD.Decoder a
+samplerDec default prop intToSamplerValue =
+    let
+        mapper =
+            intToSamplerValue >> Maybe.withDefault default
+    in
+    -- TODO this should fail if intToSamplerValue returns nothing
+    -- hard to get nested decoder to fail if non-existing prop should
+    -- give default value
+    defaultDecoder default
+        (JD.field prop (JD.map mapper JD.int))
+
+
+samplersDecoder : JD.Decoder (List Sampler)
+samplersDecoder =
+    JD.field "samplers"
+        (JD.list
+            (JD.map4 Sampler
+                (samplerDec LinearBigger "magFilter" intToResizeBigger)
+                (samplerDec NearestMipMapLinear "minFilter" intToResizeSmaller)
+                (samplerDec Repeat "wrapS" intToWrap)
+                (samplerDec Repeat "wrapT" intToWrap)
+            )
+        )
+
+
+type ResizeBigger
+    = NearestBigger
+    | LinearBigger
+
+
+intToResizeBigger : Int -> Maybe ResizeBigger
+intToResizeBigger int =
+    case int of
+        9728 ->
+            Just NearestBigger
+
+        9729 ->
+            Just LinearBigger
+
+        _ ->
+            Nothing
+
+
+type ResizeSmaller
+    = NearestSmaller
+    | LinearSmaller
+    | NearestMipMapNearest
+    | LinearMipMapNearest
+    | NearestMipMapLinear
+    | LinearMipMapLinear
+
+
+intToResizeSmaller : Int -> Maybe ResizeSmaller
+intToResizeSmaller int =
+    case int of
+        9728 ->
+            Just NearestSmaller
+
+        9729 ->
+            Just LinearSmaller
+
+        9984 ->
+            Just NearestMipMapNearest
+
+        9985 ->
+            Just LinearMipMapNearest
+
+        9986 ->
+            Just NearestMipMapLinear
+
+        9987 ->
+            Just LinearMipMapLinear
+
+        _ ->
+            Nothing
+
+
+intToWrap : Int -> Maybe Wrap
+intToWrap int =
+    case int of
+        10497 ->
+            Just Repeat
+
+        33071 ->
+            Just ClampToEdge
+
+        33648 ->
+            Just MirroredRepeat
+
+        _ ->
+            Nothing
+
+
+{-| Sets the wrap parameter for texture coordinate.
+-}
+type Wrap
+    = Repeat
+    | ClampToEdge
+    | MirroredRepeat
 
 
 
@@ -526,7 +683,7 @@ buffersDecoder =
 gltfEmbeddedDecoder : JD.Decoder GLTF
 gltfEmbeddedDecoder =
     JD.succeed
-        (\version scene scenes cameras nodes meshes materials accessors bufferViews buffers ->
+        (\version scene scenes cameras nodes meshes materials textures images samplers accessors bufferViews buffers ->
             GLTF
                 { version = version
                 , defaultScene = scene
@@ -535,6 +692,9 @@ gltfEmbeddedDecoder =
                 , nodes = nodes
                 , meshes = meshes
                 , materials = materials
+                , textures = textures
+                , images = images
+                , samplers = samplers
                 , accessors = accessors
                 , bufferViews = bufferViews
                 , buffers = buffers
@@ -547,6 +707,9 @@ gltfEmbeddedDecoder =
         |> JDP.custom nodesDecoder
         |> JDP.custom meshesDecoder
         |> JDP.custom materialsDecoder
+        |> JDP.custom texturesDecoder
+        |> JDP.custom imagesDecoder
+        |> JDP.custom samplersDecoder
         |> JDP.custom accessorsDecoder
         |> JDP.custom bufferViewsDecoder
         |> JDP.custom buffersDecoder
