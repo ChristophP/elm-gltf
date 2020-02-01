@@ -1,4 +1,4 @@
-module Scene exposing (..)
+module Scene exposing (Scene, fromGLTF, getCameras, getDrawables)
 
 import GLTF
 import Math.Matrix4 as Mat4
@@ -14,8 +14,8 @@ type Node
     | Group Mat4.Mat4 (List Node)
 
 
-makeScene : GLTF.GLTF -> Maybe Scene
-makeScene gltf =
+fromGLTF : GLTF.GLTF -> Maybe Scene
+fromGLTF gltf =
     let
         maybeMeshes =
             GLTF.resolveAccessors gltf

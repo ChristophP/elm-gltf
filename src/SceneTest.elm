@@ -249,7 +249,7 @@ scene =
         maybeScene =
             JD.decodeString GLTF.gltfEmbeddedDecoder duckEmbedded
                 |> Result.toMaybe
-                |> Maybe.andThen Scene.makeScene
+                |> Maybe.andThen Scene.fromGLTF
     in
     case maybeScene of
         Just theScene ->

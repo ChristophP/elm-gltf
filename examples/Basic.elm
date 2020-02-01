@@ -51,7 +51,7 @@ init _ =
                         in
                         gltf
                     )
-                |> Result.andThen (Scene.makeScene >> Result.fromMaybe "Could not make scene")
+                |> Result.andThen (Scene.fromGLTF >> Result.fromMaybe "Could not make scene")
                 |> Result.map
                     (\scene ->
                         ( Debug.log "Meshes" <| Scene.getDrawables scene
