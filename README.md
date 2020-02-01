@@ -25,8 +25,8 @@ support in the foreseeable future.
 - [x] Extracting buffer views
 - [x] Extracting accessors
 - [x] Extracting meshes
-- [ ] Extracting textures
-- [ ] Extracting texture properties
+- [x] Extracting textures
+- [x] Extracting texture properties
 - [ ] Extracting TRS properties (separate rotation, scale and translation)
 - [ ] Extracting meshes with different vertex attributes (right now only position, normal, texCoords)
 - [ ] Extracting different materials (PBR, Lambertian, etc)
@@ -53,6 +53,10 @@ Things that can get expensive when done a lot:
   - accessors
   - nodes -> meshes
   - material -> textures
+
+`Scene` could be just something simple to draw. If something like modifying
+the scene data is needed, there could be an integration with `elm-3d-scene` for
+that.
 
 ### 2020-01-21 Using a Camera contained in the glTF
 ![Third Result](/result_03.png?raw=true "Third Result")
