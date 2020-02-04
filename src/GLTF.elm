@@ -10,8 +10,10 @@ import Math.Vector3 as Vec3 exposing (vec3)
 import Math.Vector4 as Vec4 exposing (vec4)
 import Mesh exposing (Attributes, Mesh)
 import Set
+import Task exposing (Task)
 import Util exposing (defaultDecoder, listGetAt, maybeSequence)
 import WebGL
+import WebGL.Texture as Texture
 
 
 type GLTF
@@ -492,6 +494,14 @@ type alias Sampler =
     }
 
 
+defaultSampler =
+    { magFilter = LinearBigger
+    , minFilter = NearestMipMapLinear
+    , wrapS = Repeat
+    , wrapT = Repeat
+    }
+
+
 samplerDec : a -> String -> (Int -> Maybe a) -> JD.Decoder a
 samplerDec default prop intToSamplerValue =
     let
@@ -755,3 +765,54 @@ resolveAccessors (GLTF gltf) =
                 List.map (collectData buffers) gltf.accessors
                     |> maybeSequence
             )
+
+
+resolveMaterials : GLTF -> Maybe (Task Texture.Error (List Texture.Texture))
+resolveMaterials (GLTF gltf) =
+    let
+        imageUris =
+            List.map
+                (\image ->
+                    case image of
+                        ImageUri uri ->
+                            uri
+
+                        ImageBuffer mimeType bufferViewIndex ->
+                            Debug.todo "Implement creation of data url from buffer"
+                )
+                gltf.images
+
+        maybeTextures =
+            List.map
+                (\tex ->
+                    let
+                        sampler =
+                            case tex.sampler of
+                                Just index ->
+                                    listGetAt index gltf.samplers
+
+                                Nothing ->
+                                    Just defaultSampler
+                    in
+                    -- TODO replace defaultOptions with proper options derived from sampler options
+                    listGetAt tex.source imageUris
+                        |> Maybe.map (Texture.loadWith Texture.defaultOptions)
+                )
+                gltf.textures
+    in
+    Maybe.andThen
+        (\textures ->
+            List.map
+                (\material ->
+                    let
+                        index =
+                            material.pbrMetallicRoughness.baseColorTexture.index
+                    in
+                    listGetAt index textures
+                )
+                gltf.materials
+                |> maybeSequence
+                |> Maybe.map Task.sequence
+        )
+        (maybeSequence maybeTextures)
+

@@ -6,10 +6,11 @@ import Mesh
 import Set
 import Util exposing (listGetAt, maybeSequence)
 import WebGL
+import WebGL.Texture as Texture
 
 
 type Node
-    = MeshNode Mat4.Mat4 (WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes)
+    = MeshNode Mat4.Mat4 (WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes) Texture.Texture
     | CameraNode Mat4.Mat4 GLTF.Camera
     | Group Mat4.Mat4 (List Node)
 
@@ -17,6 +18,9 @@ type Node
 fromGLTF : GLTF.GLTF -> Maybe Scene
 fromGLTF gltf =
     let
+        maybeTextureTasks =
+            GLTF.resolveMaterials gltf
+
         maybeMeshes =
             GLTF.resolveAccessors gltf
                 |> Maybe.andThen
@@ -55,6 +59,32 @@ type alias Camera =
     GLTF.Camera
 
 
+{-| Gets a list of Entities from the scene which you can directly render in
+your app. It uses default shaders. If you need more control use
+[`getDrawables`](#getDrawables)
+-}
+getEntities : Scene -> List WebGL.Entity
+getEntities scene =
+    Debug.todo "Implement me"
+
+
+{-| The Drawable is a temporary constuct to get things to work out in the example
+for now. It may be more sensible to make it more sophisticated or go straight
+to a WebGL.Entity instead.
+TODO: This should contain a lot more than what is currently supported, such as
+texture options, sampler data, PBR values etc.
+-}
+type alias Drawable =
+    { mesh : WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes
+    , worldTransform : Mat4.Mat4
+    , texture : Texture.Texture
+    }
+
+
+{-| Gets drawable items and their associated data from the scene. Use this
+when you still want to customize how rendering works such as supplying your own
+shaders, or tweaking texture options
+-}
 getDrawables : Scene -> List ( Mat4.Mat4, WebGL.Mesh Mesh.PositionNormalTexCoordsAttributes )
 getDrawables scene =
     getDrawablesHelp scene Mat4.identity []
@@ -75,7 +105,7 @@ getDrawablesHelp scene currentTransform accumulated =
                 CameraNode _ _ ->
                     accumulated
 
-                MeshNode matrix mesh ->
+                MeshNode matrix mesh texture ->
                     ( Mat4.mul currentTransform matrix, mesh ) :: accumulated
         )
         scene
@@ -97,7 +127,7 @@ getCamerasHelp scene currentTransform accumulated =
                 CameraNode matrix camera ->
                     ( Mat4.mul currentTransform matrix, camera ) :: accumulated
 
-                MeshNode _ _ ->
+                MeshNode _ _ _ ->
                     accumulated
         )
         scene
@@ -164,3 +194,9 @@ buildTreeHelp meshes cameras allNodes rootNode =
                         allNodes
             in
             Just (Group matrix childNodes)
+
+
+
+-- buildMeshNode : Mesh -> Material -> PBRMR -> TextureInfo -> Sampler & Image -> Texture
+--buildMesh : GLTF -> Mesh.Mesh -> (WegGL.Mesh Mesh.PositionNormalTexCoordsAttributes, Texture Texture)
+--buildMesh gltf
